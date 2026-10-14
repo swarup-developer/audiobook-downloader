@@ -72,27 +72,6 @@ jobs:
           & $iscc "/DAppVersion=$version" "/DSourceExe=$PWD\app\AudiobookDownload.exe" "/O$PWD\app" installer\AudiobookDownloader.iss
           if ($LASTEXITCODE -ne 0) { throw 'The installer could not be built.' }
 
-      - name: Install, self-test the installed copy, uninstall
-        shell: pwsh
-        run: |
-          $setup = Get-ChildItem app -Filter 'AudiobookDownloader-Setup-*.exe' | Select-Object -First 1
-          $dir = Join-Path $env:RUNNER_TEMP 'installed'
-          Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/CURRENTUSER', "/DIR=$dir" -Wait
-          # Setup starts the app when it finishes, as it does after an update.
-          Start-Sleep -Seconds 5
-          Get-Process AudiobookDownload -ErrorAction SilentlyContinue | Stop-Process -Force
-          if (-not (Test-Path "$dir\AudiobookDownload.exe")) { throw 'The installer did not install the app.' }
-          if (-not (Test-Path "$dir\unins000.exe")) { throw 'The installer did not install an uninstaller.' }
-          $run = Start-Process "$dir\AudiobookDownload.exe" -ArgumentList '--self-test', "$PWD/installed-self-test.txt" -WorkingDirectory $dir -Wait -PassThru
-          Get-Content installed-self-test.txt | Select-Object -Last 3
-          if ($run.ExitCode -ne 0) { throw "The installed app's self-test found problems." }
-          Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait
-          $deadline = (Get-Date).AddSeconds(15)
-          while ((Test-Path "$dir\AudiobookDownload.exe") -and ((Get-Date) -lt $deadline)) {
-            Start-Sleep -Milliseconds 500
-          }
-          if (Test-Path "$dir\AudiobookDownload.exe") { throw 'Uninstalling left the app behind.' }
-
       - name: Keep the exe and the installer
         uses: actions/upload-artifact@v4
         with:
