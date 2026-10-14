@@ -267,7 +267,7 @@ internal static partial class Strings
         ["Main.OnlyFailedRetry"] = new() { ["en"] = "Only failed or cancelled items can be retried.", ["hi"] = "केवल विफल या रद्द आइटम फिर से चलाए जा सकते हैं।", ["es"] = "Solo se pueden reintentar los elementos fallidos o cancelados." },
         ["Main.Retrying"] = new() { ["en"] = "Retrying {0}.", ["hi"] = "{0} का पुनः प्रयास हो रहा है।", ["es"] = "Reintentando {0}." },
         ["Main.SelectPendingFirst"] = new() { ["en"] = "Select a pending item in the queue first.", ["hi"] = "पहले सूची में प्रतीक्षित आइटम चुनें।", ["es"] = "Seleccione primero un elemento pendiente." },
-        ["Main.OnlyPendingRemove"] = new() { ["en"] = "Only items that have not started downloading can be removed.", ["hi"] = "केवल वे आइटम हटाए जा सकते हैं जो शुरू नहीं हुए।", ["es"] = "Solo se pueden quitar los elementos que no han empezado." },
+        ["Main.OnlyPendingRemove"] = new() { ["en"] = "Only items that are waiting or that failed can be removed.", ["hi"] = "केवल प्रतीक्षित या विफल आइटम हटाए जा सकते हैं।", ["es"] = "Solo se pueden quitar los elementos pendientes o fallidos." },
         ["Main.RemoveConfirm"] = new() { ["en"] = "Remove \"{0}\" from the download queue?\n\nIt has not started downloading yet, so nothing will be lost.", ["hi"] = "\"{0}\" को डाउनलोड सूची से हटाएँ?\n\nइसका डाउनलोड शुरू नहीं हुआ, इसलिए कुछ भी नहीं खोएगा।", ["es"] = "¿Quitar \"{0}\" de la cola de descargas?\n\nAún no ha empezado, así que no se perderá nada." },
         ["Main.RemoveConfirmTitle"] = new() { ["en"] = "Confirm removal", ["hi"] = "हटाने की पुष्टि", ["es"] = "Confirmar la eliminación" },
         ["Main.RemovalCancelled"] = new() { ["en"] = "Removal cancelled.", ["hi"] = "हटाना रद्द किया गया।", ["es"] = "Eliminación cancelada." },
@@ -418,9 +418,9 @@ internal static partial class Strings
         },
         ["Shortcut.Remove"] = new()
         {
-            ["en"] = "Remove the selected item that has not started downloading yet.",
-            ["hi"] = "चुना गया वह आइटम हटाएँ जिसका डाउनलोड शुरू नहीं हुआ।",
-            ["es"] = "Quitar el elemento seleccionado que aún no ha empezado a descargarse.",
+            ["en"] = "Remove the selected item that is waiting or that failed.",
+            ["hi"] = "चुना गया प्रतीक्षित या विफल आइटम हटाएँ।",
+            ["es"] = "Quitar el elemento seleccionado que está pendiente o que falló.",
         },
         ["Shortcut.ClearFinished"] = new()
         {

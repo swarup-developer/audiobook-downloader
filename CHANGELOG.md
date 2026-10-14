@@ -197,6 +197,8 @@ YouTube and Spotify sources were removed.
 - A permanent error such as 403 or 404 is reported at once instead of being retried
   for twenty seconds.
 - The Audible library was fetched twice at start-up; it is now one request.
+- A failed download can be removed from the queue (Ctrl+Delete), instead of staying
+  there for good.
 - **Audible books show their titles and authors.** The library was requested with too
   few response groups, so Amazon sent no title and every book was listed by its ASIN
   (and as "Unknown author"). Titles, authors, narrators, length and language now arrive.

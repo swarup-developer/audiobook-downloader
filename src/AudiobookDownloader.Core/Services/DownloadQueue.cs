@@ -130,7 +130,9 @@ public sealed class DownloadQueue
     /// </summary>
     public void Remove(QueueItem item)
     {
-        if (item.Status is not QueueStatus.Pending)
+        // A failed item can go too: it is not running, and nothing it left behind
+        // is touched (a partial file stays where it is).
+        if (item.Status is not (QueueStatus.Pending or QueueStatus.Failed))
             return; // only items that have not started yet can be removed
         lock (_lock) _items.Remove(item);
         Save();

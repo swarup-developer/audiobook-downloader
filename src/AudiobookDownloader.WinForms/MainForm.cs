@@ -1234,7 +1234,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             SetStatus(Strings.T("Main.SelectPendingFirst"));
             return;
         }
-        if (item.Status is not QueueStatus.Pending)
+        if (item.Status is not (QueueStatus.Pending or QueueStatus.Failed))
         {
             SetStatus(Strings.T("Main.OnlyPendingRemove"));
             return;
@@ -1287,7 +1287,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         queueMenuRetry.Enabled = queueList.SelectedItem is QueueItem r &&
                                  r.Status is QueueStatus.Failed or QueueStatus.Cancelled;
         queueMenuRemove.Enabled = queueList.SelectedItem is QueueItem p &&
-                                  p.Status == QueueStatus.Pending;
+                                  p.Status is QueueStatus.Pending or QueueStatus.Failed;
         queueMenuClearFinished.Enabled =
             _queue.Items.Any(i => i.Status is QueueStatus.Completed or QueueStatus.Cancelled);
     }
