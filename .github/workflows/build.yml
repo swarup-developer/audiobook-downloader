@@ -43,3 +43,29 @@ jobs:
           name: self-test-report
           path: self-test-report.txt
           if-no-files-found: ignore
+
+      # The same single-file exe a release has, kept with the run for testing before
+      # a release. Download it from the run's page under Artifacts.
+      - name: Build the single-file exe
+        shell: pwsh
+        run: |
+          dotnet publish src/AudiobookDownloader.WinForms/AudiobookDownloader.WinForms.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o out
+          New-Item -ItemType Directory -Force app | Out-Null
+          Move-Item out/AudiobookDownloader.WinForms.exe app/AudiobookDownload.exe
+
+      - name: Self-test the exe on its own
+        shell: pwsh
+        run: |
+          $run = Start-Process -FilePath app/AudiobookDownload.exe -ArgumentList '--self-test', "$PWD/exe-self-test.txt" -WorkingDirectory app -Wait -PassThru
+          Get-Content exe-self-test.txt | Select-Object -Last 3
+          if ($run.ExitCode -ne 0) { throw "The exe's self-test found problems (exit code $($run.ExitCode))." }
+
+      - name: Keep the exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudiobookDownload-${{ github.sha }}
+          path: app/AudiobookDownload.exe
+          retention-days: 30
