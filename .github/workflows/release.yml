@@ -1,0 +1,91 @@
+# Builds AudiobookDownload.exe on GitHub and publishes it as a release.
+#
+# Start it either way:
+#   - push a version tag:      git tag v1.2.0 && git push origin v1.2.0
+#   - or on GitHub: Actions, Release, Run workflow, and type the version (1.2.0).
+#
+# The release notes are the version's section of CHANGELOG.md, so write that first.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, for example 1.2.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          $version = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.version }}' } else { '${{ github.ref_name }}' }
+          $version = $version.Trim().TrimStart('v', 'V')
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "'$version' is not a version like 1.2.0." }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build the single-file exe
+        shell: pwsh
+        run: |
+          dotnet publish src/AudiobookDownloader.WinForms/AudiobookDownloader.WinForms.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:Version=${{ steps.version.outputs.version }} `
+            -o out
+          New-Item -ItemType Directory -Force release | Out-Null
+          Move-Item out/AudiobookDownloader.WinForms.exe release/AudiobookDownload.exe
+
+      - name: Self-test the exe on its own
+        shell: pwsh
+        run: |
+          # Run from a folder that holds nothing else, the way people will run it.
+          $run = Start-Process -FilePath release/AudiobookDownload.exe -ArgumentList '--self-test', "$PWD/self-test-report.txt" -WorkingDirectory release -Wait -PassThru
+          Get-Content self-test-report.txt
+          if ($run.ExitCode -ne 0) { throw "The self-test found problems (exit code $($run.ExitCode)); nothing was released." }
+
+      - name: Release notes from CHANGELOG.md
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $lines = Get-Content CHANGELOG.md
+          $start = ($lines | Select-String -Pattern "^## \[$([regex]::Escape($version))\]").LineNumber
+          if (-not $start) { throw "CHANGELOG.md has no section for $version; add one before releasing." }
+          $rest = $lines[$start..($lines.Count - 1)]
+          $end = ($rest | Select-String -Pattern '^## \[' | Select-Object -First 1).LineNumber
+          $section = if ($end) { $rest[0..($end - 2)] } else { $rest }
+          $intro = @(
+            "Audiobook Downloader $version for Windows 10 and 11 (64-bit). Download ``AudiobookDownload.exe`` below and run it; there is nothing to install.",
+            "",
+            "Windows SmartScreen may warn the first time because the file is not code-signed: choose More info, then Run anyway. For personal backups of books you own only.",
+            ""
+          )
+          ($intro + $section) -join "`n" | Out-File -Encoding utf8 release-notes.md
+          Get-Content release-notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          gh release create $tag release/AudiobookDownload.exe `
+            --title "Audiobook Downloader ${{ steps.version.outputs.version }}" `
+            --notes-file release-notes.md `
+            --target ${{ github.sha }}

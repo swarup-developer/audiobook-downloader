@@ -341,6 +341,26 @@ checks the following and exits with an error if anything is wrong:
 
 Add `--self-test-live` to also read the real LibriVox catalogue over the internet.
 
+### Making a release
+
+Releases are built on GitHub, never on a personal computer. Every push and pull
+request is built and self-tested by the **Build** workflow. To publish a version:
+
+1. Add a section for it to `CHANGELOG.md` (for example `## [1.2.0] — 2026-10-14`)
+   and push it. That section becomes the release notes.
+2. Start the **Release** workflow, either by pushing a tag:
+
+   ```
+   git tag v1.2.0
+   git push origin v1.2.0
+   ```
+
+   or on GitHub under Actions, Release, Run workflow, typing the version.
+
+The workflow builds the single-file `AudiobookDownload.exe`, runs the self-test on
+that exact file in an empty folder, and only then publishes the release with the exe
+attached. If the self-test finds a problem, nothing is released.
+
 ### Project layout
 
 ```

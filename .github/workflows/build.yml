@@ -1,0 +1,45 @@
+# Builds the app and runs its self-test on every push and pull request, so a change
+# that breaks the build, a window's accessibility or a translation is caught on GitHub.
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build AudiobookDownloader.sln -c Release
+
+      - name: Self-test
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem src/AudiobookDownloader.WinForms/bin/Release -Recurse -Filter AudiobookDownloader.WinForms.exe | Select-Object -First 1
+          # A Windows app returns at once when started from a shell, so wait for it.
+          $run = Start-Process -FilePath $exe.FullName -ArgumentList '--self-test', 'self-test-report.txt' -Wait -PassThru
+          Get-Content self-test-report.txt
+          if ($run.ExitCode -ne 0) { throw "The self-test found problems (exit code $($run.ExitCode))." }
+
+      - name: Keep the self-test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-test-report
+          path: self-test-report.txt
+          if-no-files-found: ignore
