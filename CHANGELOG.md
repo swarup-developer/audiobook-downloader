@@ -21,11 +21,19 @@ Nothing yet.
 
 ## [1.3.0] — 2026-10-14
 
-A simpler main window, a format choice for every download, Audible books saved
-without DRM automatically, and a tidier Settings dialog.
+An installer and automatic updates, a simpler main window, a format choice for
+every download, Audible books saved without DRM automatically, and a tidier Settings
+dialog.
 
 ### Added
 
+- **An installer.** AudiobookDownloader-Setup.exe installs the app for your user
+  account (no administrator password), with a Start menu entry, an optional desktop
+  icon and an uninstaller. The portable exe is still published beside it.
+- **Updates from inside the app.** When a new version is out, a window shows its
+  number, a short What's new list, and Update and Cancel buttons. Update downloads
+  it, closes the app, installs it and starts the app again, for the installed and
+  the portable version alike.
 - **Choose the format when you download.** Pressing Download opens a small window
   with a Format list and a Download now button. Audible books can be saved as one
   M4B, one MP3, or one M4B or MP3 file per chapter; Project Gutenberg books as audio,

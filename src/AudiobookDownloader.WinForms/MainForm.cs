@@ -1122,21 +1122,20 @@ public partial class MainForm : Form, IAudibleSignInWindow
             return;
         }
 
-        var latest = update.Latest.ToString(3);
-        Log.Info($"Version {latest} is available (running {shown}).");
+        Log.Info($"Version {update.Latest.ToString(3)} is available (running {shown}).");
 
-        if (quiet)
+        // Not in the middle of a download: the update would close the app under it.
+        if (quiet && _queue.IsRunning)
         {
-            SetStatus(string.Format(Strings.T("Main.UpdateStatus"), latest));
+            SetStatus(string.Format(Strings.T("Main.UpdateStatus"), update.Latest.ToString(3)));
             return;
         }
 
-        var answer = MessageBox.Show(this,
-            string.Format(Strings.T("Main.UpdateAvailable"), latest, shown),
-            Strings.T("Main.UpdateAvailableTitle"),
-            MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-        if (answer == DialogResult.Yes)
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = update.Url, UseShellExecute = true });
+        // The version, what is new in it, and Update or Cancel.
+        using var dialog = new UpdateForm(update, current);
+        dialog.ShowDialog(this);
+        if (dialog.ReadyToClose)
+            Close();
     }
 
     /// <summary>

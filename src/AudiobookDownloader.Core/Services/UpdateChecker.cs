@@ -4,7 +4,10 @@ using System.Text.Json;
 namespace AudiobookDownloader.Core;
 
 /// <summary>A newer release than the one running, as GitHub describes it.</summary>
-public sealed record UpdateInfo(Version Latest, string Url, string Notes);
+/// <param name="InstallerUrl">The release's setup program, for an installed copy.</param>
+/// <param name="PortableUrl">The release's single exe, for a copy run from a folder.</param>
+public sealed record UpdateInfo(Version Latest, string Url, string Notes,
+    string? InstallerUrl = null, string? PortableUrl = null);
 
 /// <summary>
 /// Asks GitHub whether a newer version has been released. Only the public release
@@ -53,7 +56,24 @@ public static class UpdateChecker
             : ReleasesPage;
         var notes = root.TryGetProperty("body", out var b) ? b.GetString() ?? "" : "";
 
-        return new UpdateInfo(latest, url, notes);
+        // The files attached to the release: the setup program and the portable exe.
+        string? installer = null, portable = null;
+        if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var asset in assets.EnumerateArray())
+            {
+                var name = asset.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                var link = asset.TryGetProperty("browser_download_url", out var d) ? d.GetString() : null;
+                if (string.IsNullOrWhiteSpace(link) || !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (name.Contains("setup", StringComparison.OrdinalIgnoreCase))
+                    installer ??= link;
+                else
+                    portable ??= link;
+            }
+        }
+
+        return new UpdateInfo(latest, url, notes, installer, portable);
     }
 
     /// <summary>"v1.2.0", "1.2" and "1.2.0-beta" all read as versions; anything else is null.</summary>

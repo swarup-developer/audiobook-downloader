@@ -61,6 +61,7 @@ internal static class SelfTest
         CheckForm("Bookmarks", () => new BookmarksForm([new Bookmark { Seconds = 75, Note = "A good part" }, new Bookmark { Track = 2, Seconds = 4000 }], ["a.mp3", "b.mp3", "c.mp3"]));
         CheckForm("Text prompt", () => new TextPrompt("Add bookmark", "Note for the bookmark at 1:15 (optional):", ""));
         CheckForm("Book details", () => new BookDetailsForm("A Book", ["Title: A Book", "Author: Someone"]));
+        CheckForm("Update", () => new UpdateForm(new UpdateInfo(new Version(9, 9, 0), "https://example.invalid", "- New things"), new Version(1, 3, 0)));
         CheckForm("Download format", () => new DownloadFormatForm("A Book", [("m4b", "M4B"), ("mp3", "MP3")], "mp3"));
         CheckPlayerPlays();
         CheckPlayerExtras();
@@ -81,6 +82,7 @@ internal static class SelfTest
         CheckQueueMessages();
         CheckShortcuts();
         SelfTestDownloads.Run(Line, Fail);
+        SelfTestUpdates.Run(Line, Fail);
         SelfTestQueue.Run(Line, Fail);
         SelfTestCatalog.Run(Line, Fail, live);
         SelfTestUi.Run(Line, Fail);
@@ -556,6 +558,7 @@ internal static class SelfTest
         yield return ("Bookmarks", () => new BookmarksForm([new Bookmark { Seconds = 75, Note = "A good part" }, new Bookmark { Track = 2, Seconds = 4000 }], ["a.mp3", "b.mp3", "c.mp3"]));
         yield return ("Text prompt", () => new TextPrompt("Add bookmark", "Note for the bookmark at 1:15 (optional):", ""));
         yield return ("Book details", () => new BookDetailsForm("A Book", ["Title: A Book", "Author: Someone"]));
+        yield return ("Update", () => new UpdateForm(new UpdateInfo(new Version(9, 9, 0), "https://example.invalid", "- New things"), new Version(1, 3, 0)));
         yield return ("Download format", () => new DownloadFormatForm("A Book", [("m4b", "M4B"), ("mp3", "MP3")], "mp3"));
     }
 

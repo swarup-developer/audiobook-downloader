@@ -92,11 +92,22 @@ its own.
 
 ## Download and install
 
-1. Download `AudiobookDownload.exe` from the
-   [Releases](https://github.com/swarup-developer/audiobook-downloader/releases)
-   page.
-2. Put it in any folder and run it. There is no installer, and you do not need to
-   install .NET.
+Open the [latest release](https://github.com/swarup-developer/audiobook-downloader/releases/latest)
+and download one of two files. You do not need to install .NET for either.
+
+- **`AudiobookDownloader-Setup-x.y.z.exe` (recommended):** the installer. Run it and
+  follow the steps. It installs for your user account, with no administrator
+  password, and adds the app to the Start menu (and, if you tick it, the desktop).
+  "Install for all users" puts it in Program Files instead. Uninstall it from
+  Windows Settings, Apps. Your settings and downloaded books are kept.
+- **`AudiobookDownload.exe`:** the portable version. Put it in any folder and run it.
+
+**Updates.** When a new version is out, the app shows the version number, a short
+**What's new** list (read line by line with the arrows), and two buttons: **Update**
+and **Cancel**. Update downloads the new version, closes the app, puts the new
+version in place and starts it again; this works for both the installed and the
+portable version. The check runs when the app starts (it can be turned off in
+Settings, General) and from Help, Check for updates.
 
 **Requirements**
 
@@ -105,7 +116,7 @@ its own.
   already part of Windows 11 and comes with Microsoft Edge on Windows 10. If it is
   missing, the app tells you so.
 
-Windows SmartScreen may warn you the first time you run the file, because it is not
+Windows SmartScreen may warn you the first time you run either file, because it is not
 yet signed with a code-signing certificate. Choose "More info", then "Run anyway".
 (The release workflow signs every release automatically as soon as a certificate is
 added to the repository; see [Making a release](#making-a-release).)
@@ -364,6 +375,8 @@ checks the following and exits with an error if anything is wrong:
   that are already downloaded;
 - the player: it really plays a file, remembers where it stopped and resumes there,
   records listening time, reads the chapters inside an M4B, and finds long silences;
+- the updater: reading a release and its files, downloading the new version, and the
+  script that replaces the portable exe;
 - the LibriVox catalogue reader.
 
 Add `--self-test-live` to also read the real LibriVox catalogue over the internet.
@@ -373,21 +386,23 @@ Add `--self-test-live` to also read the real LibriVox catalogue over the interne
 Releases are built on GitHub, never on a personal computer. Every push and pull
 request is built and self-tested by the **Build** workflow. To publish a version:
 
-1. Add a section for it to `CHANGELOG.md` (for example `## [1.2.0] — 2026-10-14`)
+1. Add a section for it to `CHANGELOG.md` (for example `## [1.3.0] — 2026-10-14`)
    and push it. That section becomes the release notes.
 2. Start the **Release** workflow, either by pushing a tag:
 
    ```
-   git tag v1.2.0
-   git push origin v1.2.0
+   git tag v1.3.0
+   git push origin v1.3.0
    ```
 
    or on GitHub under Actions, Release, Run workflow, typing the version.
 
-The workflow builds the single-file `AudiobookDownload.exe`, signs it when a
-certificate is configured, runs the self-test on that exact file in an empty folder,
-and only then publishes the release with the exe attached. If the self-test finds a
-problem, nothing is released.
+The workflow builds the single-file `AudiobookDownload.exe` and, with Inno Setup
+(`installer/AudiobookDownloader.iss`), the installer; signs both when a certificate
+is configured; runs the self-test on the exe in an empty folder; installs the
+installer, runs the self-test on the installed copy and uninstalls it again; and only
+then publishes the release with both files attached. If any of that fails, nothing is
+released. The Build workflow does the same on every push, without publishing.
 
 **Code signing.** Add two repository secrets, `SIGNING_CERT_BASE64` (the `.pfx`
 certificate, base64-encoded) and `SIGNING_CERT_PASSWORD`, and every release is signed
