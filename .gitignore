@@ -1,0 +1,12 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Release builds are attached to GitHub Releases, not committed (the exe is over 100 MB).
+publish/
+out/
+
+# Local tool state
+.freebuff/

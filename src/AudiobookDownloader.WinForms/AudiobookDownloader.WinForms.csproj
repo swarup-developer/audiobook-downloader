@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.17763.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationUseCompatibleTextRendering>false</ApplicationUseCompatibleTextRendering>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyTitle>Audiobook Downloader</AssemblyTitle>
+    <Product>Audiobook Downloader</Product>
+    <Description>Download and back up your audiobooks</Description>
+    <!-- WebView2 ships a WPF assembly for every .NET 5+ app. Referencing it in a
+         WinForms app makes the build report a WindowsBase version clash that can
+         never happen at run time, because that assembly is never loaded here. -->
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AudiobookDownloader.Core\AudiobookDownloader.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
+    <!-- The Audible sign-in window is a browser the app owns (see AudibleSignInForm). -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+  </ItemGroup>
+
+</Project>
