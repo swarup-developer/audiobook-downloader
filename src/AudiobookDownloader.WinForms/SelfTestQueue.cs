@@ -186,7 +186,7 @@ internal static class SelfTestQueue
             fail(message);
         }
 
-        using var server = new LoopbackFileServer(Payload) { ChunkSize = 4096, ChunkDelayMs = 5 };
+        using var server = new LoopbackFileServer(Payload) { ChunkSize = 4096, ChunkDelayMs = 25 };
         var provider = new LoopbackProvider(server, "selftest");
         var interrupted = Book("b1", "Interrupted");
         var untouched = Book("b2", "Not Started");
@@ -197,7 +197,7 @@ internal static class SelfTestQueue
         before.Enqueue(provider, interrupted);
         before.Enqueue(provider, untouched);
 
-        using (var cutOff = new CancellationTokenSource(TimeSpan.FromMilliseconds(300)))
+        using (var cutOff = new CancellationTokenSource(TimeSpan.FromMilliseconds(200)))
             await manager.DownloadAsync(interrupted, server.TicketFor(interrupted), null, cutOff.Token);
 
         if (!File.Exists(PartialOf(settings, interrupted)))
