@@ -50,6 +50,7 @@ internal sealed class SettingsForm : Form
         ClientSize = new Size(820, 660);
         StartPosition = FormStartPosition.CenterParent;
         AutoScaleMode = AutoScaleMode.Font;
+        Strings.ApplyDirection(this);
         AccessibleName = Strings.T("Settings.Title");
         AccessibleRole = AccessibleRole.Dialog;
 
@@ -207,6 +208,10 @@ internal sealed class SettingsForm : Form
             "Remember the last provider");
         _apply.Add(() => _settings.RememberLastProvider = remember.Checked);
 
+        var updates = row.AddCheck(Strings.T("Set.CheckUpdates"), _settings.CheckForUpdates,
+            "Check for updates when the app starts");
+        _apply.Add(() => _settings.CheckForUpdates = updates.Checked);
+
         row.AddNote(string.Format(Strings.T("Set.DataFolder"), AppSettings.SettingsFolder));
         return page;
     }
@@ -220,9 +225,29 @@ internal sealed class SettingsForm : Form
         var page = NewPage(Strings.T("Settings.Downloads"), Strings.T("Settings.DownloadsDescription"));
         var row = new SectionBuilder(page, Announce);
 
-        var drm = row.AddCheck(Strings.T("Set.RemoveDrm"), _settings.RemoveDrm,
-            "Remove DRM from Audible files");
-        _apply.Add(() => _settings.RemoveDrm = drm.Checked);
+        // DRM removal is the person's own decision: off until they tick it and accept
+        // the personal-use notice, which is asked once.
+        var drm = row.AddCheck(Strings.T("Set.RemoveDrm"), _settings.DrmRemovalEnabled,
+            "Remove DRM from Audible books");
+        var consented = _settings.DrmRemovalConsented;
+        drm.CheckedChanged += (_, _) =>
+        {
+            if (!drm.Checked || consented)
+                return;
+
+            var answer = MessageBox.Show(this, Strings.T("Drm.Confirm"), Strings.T("Drm.ConfirmTitle"),
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (answer == DialogResult.Yes)
+                consented = true;
+            else
+                drm.Checked = false;
+        };
+        _apply.Add(() =>
+        {
+            _settings.RemoveDrm = drm.Checked;
+            if (drm.Checked)
+                _settings.DrmRemovalConsented = consented;
+        });
 
         var delete = row.AddCheck(Strings.T("Set.DeleteIntermediate"), _settings.DeleteIntermediateFile,
             "Delete the encrypted original after decryption");
@@ -235,6 +260,41 @@ internal sealed class SettingsForm : Form
         var duplicates = row.AddCheck(Strings.T("Set.WarnDuplicates"), _settings.WarnAboutDuplicates,
             "Ask before downloading a book that is already downloaded");
         _apply.Add(() => _settings.WarnAboutDuplicates = duplicates.Checked);
+
+        // Audible output: lossless M4B or MP3, whole or one file per chapter.
+        string[] formats = [Strings.T("Format.M4b"), Strings.T("Format.Mp3")];
+        var format = NewCombo(formats,
+            string.Equals(_settings.OutputFormat, "mp3", StringComparison.OrdinalIgnoreCase) ? formats[1] : formats[0],
+            Strings.Plain(Strings.T("Set.OutputFormat")).TrimEnd(':'), "");
+        row.AddLabeled(Strings.T("Set.OutputFormat"), format);
+        _apply.Add(() => _settings.OutputFormat = format.SelectedIndex == 1 ? "mp3" : "m4b");
+
+        var split = row.AddCheck(Strings.T("Set.SplitChapters"), _settings.SplitByChapter,
+            "Save one file per chapter");
+        _apply.Add(() => _settings.SplitByChapter = split.Checked);
+
+        var embed = row.AddCheck(Strings.T("Set.EmbedInfo"), _settings.EmbedBookInfo,
+            "Write the description, series and cover into the book file");
+        _apply.Add(() => _settings.EmbedBookInfo = embed.Checked);
+
+        var cover = row.AddCheck(Strings.T("Set.SaveCover"), _settings.SaveCoverImage,
+            "Save the cover picture next to each book");
+        _apply.Add(() => _settings.SaveCoverImage = cover.Checked);
+
+        string[] parallel = ["1", "2", "3", "4"];
+        var parallelCombo = NewCombo(parallel, Math.Clamp(_settings.MaxParallelDownloads, 1, 4).ToString(),
+            Strings.Plain(Strings.T("Set.Parallel")).TrimEnd(':'), "");
+        row.AddLabeled(Strings.T("Set.Parallel"), parallelCombo);
+        _apply.Add(() => _settings.MaxParallelDownloads = parallelCombo.SelectedIndex + 1);
+
+        int[] limits = [0, 256, 512, 1024, 2048, 5120, 10240];
+        string LimitText(int kb) => kb == 0 ? Strings.T("Speed.None")
+            : kb >= 1024 ? $"{kb / 1024} MB/s" : $"{kb} KB/s";
+        var current = limits.Contains(_settings.SpeedLimitKBps) ? _settings.SpeedLimitKBps : 0;
+        var speedCombo = NewCombo([.. limits.Select(LimitText)], LimitText(current),
+            Strings.Plain(Strings.T("Set.SpeedLimit")).TrimEnd(':'), "");
+        row.AddLabeled(Strings.T("Set.SpeedLimit"), speedCombo);
+        _apply.Add(() => _settings.SpeedLimitKBps = limits[Math.Max(0, speedCombo.SelectedIndex)]);
 
         row.AddNote(Strings.T("Downloads.Note"));
         return page;
@@ -290,6 +350,20 @@ internal sealed class SettingsForm : Form
         var load = row.AddCheck(Strings.T("Set.LoadLibrary"), _settings.AudibleLoadLibraryAfterSignIn,
             "Load the Audible library after signing in");
         _apply.Add(() => _settings.AudibleLoadLibraryAfterSignIn = load.Checked);
+
+        var podcasts = row.AddCheck(Strings.T("Set.IncludePodcasts"), _settings.AudibleIncludePodcasts,
+            "List podcast episodes from my library");
+        _apply.Add(() => _settings.AudibleIncludePodcasts = podcasts.Checked);
+
+        var auto = row.AddCheck(Strings.T("Set.AutoDownload"), _settings.AudibleAutoDownloadNew,
+            "Download new purchases automatically when the app starts");
+        _apply.Add(() =>
+        {
+            // Turning it on starts counting from now, so the whole library is not downloaded.
+            if (auto.Checked && !_settings.AudibleAutoDownloadNew)
+                _settings.AudibleLastSync = DateTimeOffset.UtcNow;
+            _settings.AudibleAutoDownloadNew = auto.Checked;
+        });
 
         row.AddNote(Strings.T("Audible.Note"));
 

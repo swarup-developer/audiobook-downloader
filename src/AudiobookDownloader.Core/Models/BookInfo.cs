@@ -23,6 +23,15 @@ public sealed record BookInfo(
     /// <summary>The book's language as the provider names it, when it says; used by language filters.</summary>
     public string? Language { get; init; }
 
+    /// <summary>The publisher's description, when the provider sends one.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Series name and position, e.g. "Harry Potter, Book 1".</summary>
+    public string? Series { get; init; }
+
+    /// <summary>When the book was added to the library (Audible), for sorting by date.</summary>
+    public DateTimeOffset? DateAdded { get; init; }
+
     /// <summary>
     /// True when a file for this book is already in the download folder. Worked out
     /// when the list is shown, never stored with a cached catalogue.

@@ -50,7 +50,7 @@ public sealed class LocalFilesProvider : IBookProvider
                     ProviderId,
                     f,
                     name,
-                    "Local file",
+                    "",
                     "",
                     0,
                     null,

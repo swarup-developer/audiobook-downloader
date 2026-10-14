@@ -29,6 +29,7 @@ internal sealed class KeyboardHelpForm : Form
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(680, 586);
         AutoScaleMode = AutoScaleMode.Font;
+        Strings.ApplyDirection(this);
         AccessibleName = Strings.T("Help.Title");
         AccessibleRole = AccessibleRole.Dialog;
 

@@ -5,7 +5,7 @@ All notable changes to **Audiobook Downloader** are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Jump to: [Unreleased](#unreleased) · [1.1.0](#110) · [1.0.0](#100)
+Jump to: [Unreleased](#unreleased) · [1.2.0](#120) · [1.1.0](#110) · [1.0.0](#100)
 
 > Release dates are given in **UTC**. The first public build finished at
 > 2026-09-17 19:23 UTC, which was already 2026-09-18 in the maintainer's local
@@ -15,12 +15,45 @@ Jump to: [Unreleased](#unreleased) · [1.1.0](#110) · [1.0.0](#100)
 
 ## [Unreleased]
 
-Reliability work on the download engine, so nothing that is already on disk can be
-lost and an interrupted transfer is not thrown away, plus LibriVox search, an
-Audible sign-in that finishes by itself, and the removal of the YouTube and Spotify
-sources.
+Nothing yet.
+
+---
+
+## [1.2.0] — 2026-10-14
+
+Audible downloads that actually work end to end, opt-in DRM removal, a built-in
+player, MP3 and per-chapter output, podcast episodes, four more interface languages,
+and reliability work on the download engine, LibriVox search and the sign-in. The
+YouTube and Spotify sources were removed.
 
 ### Added
+
+- **Built-in player (Ctrl+P).** Play, pause, jump 30 seconds, change chapter, change
+  speed from 0.5x to 3x, and resume where you stopped. Plays M4B, M4A and MP3, chapter
+  folders as one book, and unzips LibriVox zips the first time. Fully keyboard driven.
+- **DRM removal is opt-in.** Off by default; turning it on in Settings asks you to
+  accept a personal-use notice. While it is off, Audible books are kept as `.aaxc` and
+  their keys are remembered, so turning it on later unlocks them without downloading
+  again (Application, Remove DRM from downloaded books). A settings file from an older
+  version that had it switched on stays off until it is confirmed.
+- **Every decryption is checked:** the DRM-free copy must play for as long as the
+  original, or it is discarded and the encrypted file is kept.
+- **MP3 output and one file per chapter** (Settings, Downloads). Chapters come from the
+  Audible licence, which is more reliable than the list inside the file; a file whose
+  own chapter list cannot be right is saved whole rather than cut into slivers.
+- **Book details written into the file:** description, series, narrator and cover.
+  The cover can also be saved as a picture next to the book.
+- **Podcast episodes in your Audible library** are listed and can be downloaded.
+- **A remembered Audible sign-in is used automatically at start-up.**
+- **Download new purchases automatically** when the app starts (optional; counts from
+  the moment it is turned on, so it never downloads the whole library).
+- **View menu:** sort by title, author, length or date added (Ctrl+1 to Ctrl+4), and
+  hide books already downloaded (Ctrl+H).
+- **Downloads at the same time** (1 to 4) and a **download speed limit**.
+- **Update check** on start-up and from Help, Check for updates.
+- **Bengali, Marathi, Tamil and Urdu** interface languages, with right-to-left layout
+  for Urdu. The self-test fails if any text is untranslated in any language.
+- Book details show series, date added and the description.
 
 - **Already-downloaded books are marked** in the book list ("already downloaded"), and
   the app asks before downloading one again: download all, skip the ones you have, or
@@ -154,6 +187,16 @@ sources.
 
 ### Fixed
 
+- **Audible downloads failed for everyone.** Three bugs stood in the way, each enough
+  on its own: the download sent no User-Agent, which Audible's servers refuse with 403
+  Forbidden; the file name was built from the whole signed address, query string
+  included, which Windows refuses; and after decrypting, the app flushed a file the
+  converter had already closed, which threw and deleted the finished book. All three
+  are fixed and the whole path (sign-in, library, licence, download, decryption) was
+  checked against a real Audible account.
+- A permanent error such as 403 or 404 is reported at once instead of being retried
+  for twenty seconds.
+- The Audible library was fetched twice at start-up; it is now one request.
 - **Audible books show their titles and authors.** The library was requested with too
   few response groups, so Amazon sent no title and every book was listed by its ASIN
   (and as "Unknown author"). Titles, authors, narrators, length and language now arrive.

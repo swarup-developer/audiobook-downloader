@@ -42,6 +42,12 @@ internal enum ShortcutAction
     BookDetails,
     ExportBookList,
     ShowBookFile,
+    PlayBook,
+    SortByTitle,
+    SortByAuthor,
+    SortByLength,
+    SortByAdded,
+    HideDownloaded,
 
     // Answered somewhere the main window does not reach.
     MoveFocus,
@@ -94,6 +100,12 @@ internal static class Shortcuts
         new(ShortcutAction.DecryptionKeys, Keys.Control | Keys.K, "Shortcut.Keys", ShortcutOwner.Menu),
         new(ShortcutAction.OpenDownloadFolder, Keys.Control | Keys.O, "Shortcut.Folder", ShortcutOwner.Menu),
         new(ShortcutAction.ExportBookList, Keys.Control | Keys.E, "Shortcut.Export", ShortcutOwner.Menu),
+        new(ShortcutAction.PlayBook, Keys.Control | Keys.P, "Shortcut.Play", ShortcutOwner.Menu),
+        new(ShortcutAction.SortByTitle, Keys.Control | Keys.D1, "Shortcut.SortTitle", ShortcutOwner.Menu),
+        new(ShortcutAction.SortByAuthor, Keys.Control | Keys.D2, "Shortcut.SortAuthor", ShortcutOwner.Menu),
+        new(ShortcutAction.SortByLength, Keys.Control | Keys.D3, "Shortcut.SortLength", ShortcutOwner.Menu),
+        new(ShortcutAction.SortByAdded, Keys.Control | Keys.D4, "Shortcut.SortAdded", ShortcutOwner.Menu),
+        new(ShortcutAction.HideDownloaded, Keys.Control | Keys.H, "Shortcut.HideDownloaded", ShortcutOwner.Menu),
         new(ShortcutAction.Quit, Keys.Alt | Keys.F4, "Shortcut.Quit", ShortcutOwner.Menu),
 
         // Answered by the main window's own key handling.
@@ -170,6 +182,7 @@ internal static class Shortcuts
                 Keys.Up => "Up",
                 Keys.Escape => "Esc",
                 Keys.Tab => "Tab",
+                >= Keys.D0 and <= Keys.D9 => ((int)(keys & Keys.KeyCode) - (int)Keys.D0).ToString(),
                 _ => (keys & Keys.KeyCode).ToString(),
             });
 

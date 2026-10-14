@@ -22,6 +22,7 @@ internal sealed class AboutForm : Form
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(560, 400);
         AutoScaleMode = AutoScaleMode.Font;
+        Strings.ApplyDirection(this);
 
         var heading = new Label
         {
@@ -65,6 +66,9 @@ internal sealed class AboutForm : Form
                 "  " + AppSettings.SettingsFolder,
                 "",
                 Strings.T("About.Licence"),
+                "",
+                "GNU AGPL 3.0. Source code:",
+                "  https://github.com/" + UpdateChecker.Repository,
             ]),
             AccessibleName = Strings.T("About.Text"),
             AccessibleRole = AccessibleRole.Text,

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AudiobookDownloader.Core;
 
@@ -43,7 +44,22 @@ public sealed class AppSettings
     // Downloads
     // ---------------------------------------------------------------------
 
-    public bool RemoveDrm { get; set; } = true;
+    /// <summary>
+    /// Remove DRM from Audible books. Off until the person turns it on in Settings
+    /// and accepts the personal-use notice; see <see cref="DrmRemovalEnabled"/>.
+    /// </summary>
+    public bool RemoveDrm { get; set; } = false;
+
+    /// <summary>True once the personal-use notice for DRM removal has been accepted.</summary>
+    public bool DrmRemovalConsented { get; set; } = false;
+
+    /// <summary>
+    /// Whether DRM is actually removed: only when it is switched on <em>and</em> the
+    /// notice was accepted. A settings file from an older version that had it on
+    /// without that consent leaves Audible books encrypted until it is confirmed.
+    /// </summary>
+    [JsonIgnore]
+    public bool DrmRemovalEnabled => RemoveDrm && DrmRemovalConsented;
     public bool DeleteIntermediateFile { get; set; } = true;
 
     /// <summary>Save each book in a folder named after its author, inside the download folder.</summary>
@@ -51,6 +67,43 @@ public sealed class AppSettings
 
     /// <summary>Ask before downloading a book whose file is already in the download folder.</summary>
     public bool WarnAboutDuplicates { get; set; } = true;
+
+    /// <summary>Audio format for Audible books: "m4b" (lossless, the default) or "mp3".</summary>
+    public string OutputFormat { get; set; } = "m4b";
+
+    /// <summary>Save one file per chapter, in a folder named after the book.</summary>
+    public bool SplitByChapter { get; set; } = false;
+
+    /// <summary>Save the cover picture as a .jpg file next to each book.</summary>
+    public bool SaveCoverImage { get; set; } = false;
+
+    /// <summary>Write the description, series and cover into the Audible book file itself.</summary>
+    public bool EmbedBookInfo { get; set; } = true;
+
+    /// <summary>How many books download at the same time (1 to 4).</summary>
+    public int MaxParallelDownloads { get; set; } = 1;
+
+    /// <summary>Download speed limit in kilobytes per second; 0 means no limit.</summary>
+    public int SpeedLimitKBps { get; set; } = 0;
+
+    // ---------------------------------------------------------------------
+    // Updates, list view and player
+    // ---------------------------------------------------------------------
+
+    /// <summary>Look for a newer version on GitHub when the app starts.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>How the book list is sorted: title, author, length or added.</summary>
+    public string SortOrder { get; set; } = "title";
+
+    /// <summary>Hide books that are already downloaded.</summary>
+    public bool HideDownloaded { get; set; } = false;
+
+    /// <summary>Where playback stopped in each file, in seconds, so it resumes there.</summary>
+    public Dictionary<string, double> PlaybackPositions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Playback speed used by the player, 0.5 to 3.</summary>
+    public double PlaybackSpeed { get; set; } = 1.0;
 
     // ---------------------------------------------------------------------
     // Audible account
@@ -78,6 +131,15 @@ public sealed class AppSettings
 
     /// <summary>Language the Audible library is narrowed to, e.g. "hindi"; empty means all.</summary>
     public string AudibleLanguage { get; set; } = "";
+
+    /// <summary>List the episodes of podcasts in the library, so they can be downloaded.</summary>
+    public bool AudibleIncludePodcasts { get; set; } = true;
+
+    /// <summary>When the app starts, download books bought since the last check.</summary>
+    public bool AudibleAutoDownloadNew { get; set; } = false;
+
+    /// <summary>When the library was last checked for new books (UTC).</summary>
+    public DateTimeOffset? AudibleLastSync { get; set; }
 
     // ---------------------------------------------------------------------
     // LibriVox
@@ -158,6 +220,13 @@ public sealed class AppSettings
 
     private static string FilePath => Path.Combine(Folder, "settings.json");
 
+    /// <summary>
+    /// Where this instance saves itself instead of the real settings file. The
+    /// self-test sets it, so checking the app can never overwrite your settings.
+    /// </summary>
+    [JsonIgnore]
+    public string? SavePath { get; set; }
+
     public static AppSettings Load()
     {
         try
@@ -176,8 +245,9 @@ public sealed class AppSettings
     {
         try
         {
-            Directory.CreateDirectory(Folder);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            var path = SavePath ?? FilePath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
         {
@@ -188,7 +258,17 @@ public sealed class AppSettings
     public CachedKeys? FindKeys(string fileName) =>
         KeyCache.FirstOrDefault(k => string.Equals(k.FileName, fileName, StringComparison.OrdinalIgnoreCase));
 
+    private static readonly object KeyGate = new();
+
     public void CacheKeys(string fileName, CachedKeys keys)
+    {
+        lock (KeyGate)
+        {
+            CacheKeysUnlocked(fileName, keys);
+        }
+    }
+
+    private void CacheKeysUnlocked(string fileName, CachedKeys keys)
     {
         KeyCache.RemoveAll(k => string.Equals(k.FileName, fileName, StringComparison.OrdinalIgnoreCase));
         KeyCache.Add(keys with { FileName = fileName });

@@ -21,4 +21,13 @@ public sealed record DownloadTicket(
     string SuggestedExtension = "")
 {
     public bool NeedsDecryption => Format is TicketFormat.Aax or TicketFormat.Aaxc;
+
+    /// <summary>
+    /// The book's chapters as the licence lists them, when it does. More reliable
+    /// than the chapter list inside the file, and what splitting by chapter uses.
+    /// </summary>
+    public IReadOnlyList<ChapterMark>? Chapters { get; init; }
 }
+
+/// <summary>One chapter: its title and where it starts and how long it is.</summary>
+public sealed record ChapterMark(string Title, TimeSpan Start, TimeSpan Length);

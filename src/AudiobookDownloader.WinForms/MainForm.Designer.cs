@@ -18,6 +18,16 @@ partial class MainForm
     private System.Windows.Forms.ToolStripMenuItem menuRefresh;
     private System.Windows.Forms.ToolStripMenuItem menuOpenFolder;
     private System.Windows.Forms.ToolStripMenuItem menuExport;
+    private System.Windows.Forms.ToolStripMenuItem menuPlay;
+    private System.Windows.Forms.ToolStripMenuItem menuUnlock;
+    private System.Windows.Forms.ToolStripMenuItem menuView;
+    private System.Windows.Forms.ToolStripMenuItem menuSortTitle;
+    private System.Windows.Forms.ToolStripMenuItem menuSortAuthor;
+    private System.Windows.Forms.ToolStripMenuItem menuSortLength;
+    private System.Windows.Forms.ToolStripMenuItem menuSortAdded;
+    private System.Windows.Forms.ToolStripSeparator menuViewSeparator;
+    private System.Windows.Forms.ToolStripMenuItem menuHideDownloaded;
+    private System.Windows.Forms.ToolStripMenuItem menuCheckUpdates;
     private System.Windows.Forms.ToolStripSeparator menuAppSeparator;
     private System.Windows.Forms.ToolStripMenuItem menuExit;
     private System.Windows.Forms.ToolStripMenuItem menuHelp;
@@ -90,6 +100,16 @@ partial class MainForm
         this.menuRefresh = new System.Windows.Forms.ToolStripMenuItem();
         this.menuOpenFolder = new System.Windows.Forms.ToolStripMenuItem();
         this.menuExport = new System.Windows.Forms.ToolStripMenuItem();
+        this.menuPlay = new System.Windows.Forms.ToolStripMenuItem();
+        this.menuUnlock = new System.Windows.Forms.ToolStripMenuItem();
+        this.menuView = new System.Windows.Forms.ToolStripMenuItem();
+        this.menuSortTitle = new System.Windows.Forms.ToolStripMenuItem();
+        this.menuSortAuthor = new System.Windows.Forms.ToolStripMenuItem();
+        this.menuSortLength = new System.Windows.Forms.ToolStripMenuItem();
+        this.menuSortAdded = new System.Windows.Forms.ToolStripMenuItem();
+        this.menuViewSeparator = new System.Windows.Forms.ToolStripSeparator();
+        this.menuHideDownloaded = new System.Windows.Forms.ToolStripMenuItem();
+        this.menuCheckUpdates = new System.Windows.Forms.ToolStripMenuItem();
         this.menuAppSeparator = new System.Windows.Forms.ToolStripSeparator();
         this.menuExit = new System.Windows.Forms.ToolStripMenuItem();
         this.menuHelp = new System.Windows.Forms.ToolStripMenuItem();
@@ -164,7 +184,7 @@ partial class MainForm
         this.menuStrip.TabIndex = 0;
         this.menuStrip.AccessibleName = "Application menu";
         this.menuStrip.AccessibleRole = System.Windows.Forms.AccessibleRole.MenuBar;
-        this.menuStrip.Items.AddRange([this.menuApplication, this.menuHelp]);
+        this.menuStrip.Items.AddRange([this.menuApplication, this.menuView, this.menuHelp]);
 
         //
         // menuApplication
@@ -173,10 +193,12 @@ partial class MainForm
         this.menuApplication.AccessibleName = "Application";
         this.menuApplication.DropDownItems.AddRange(
         [
+            this.menuPlay,
             this.menuSettings,
             this.menuRefresh,
             this.menuOpenFolder,
             this.menuExport,
+            this.menuUnlock,
             this.menuAppSeparator,
             this.menuExit,
         ]);
@@ -206,6 +228,56 @@ partial class MainForm
         this.menuOpenFolder.AccessibleName = "Open download folder";
 
         //
+        // menuPlay — the built-in player, for the selected book
+        //
+        this.menuPlay.Name = "menuPlay";
+        this.menuPlay.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.P;
+        this.menuPlay.ShowShortcutKeys = true;
+        this.menuPlay.AccessibleName = "Play selected book";
+
+        //
+        // menuView — how the book list is sorted, and whether downloaded books show
+        //
+        this.menuView.Name = "menuView";
+        this.menuView.AccessibleName = "View";
+        this.menuView.DropDownItems.AddRange(
+        [
+            this.menuSortTitle,
+            this.menuSortAuthor,
+            this.menuSortLength,
+            this.menuSortAdded,
+            this.menuViewSeparator,
+            this.menuHideDownloaded,
+        ]);
+        this.menuSortTitle.Name = "menuSortTitle";
+        this.menuSortTitle.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D1;
+        this.menuSortTitle.AccessibleName = "Sort by title";
+        this.menuSortAuthor.Name = "menuSortAuthor";
+        this.menuSortAuthor.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D2;
+        this.menuSortAuthor.AccessibleName = "Sort by author";
+        this.menuSortLength.Name = "menuSortLength";
+        this.menuSortLength.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D3;
+        this.menuSortLength.AccessibleName = "Sort by length";
+        this.menuSortAdded.Name = "menuSortAdded";
+        this.menuSortAdded.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.D4;
+        this.menuSortAdded.AccessibleName = "Sort by date added";
+        this.menuHideDownloaded.Name = "menuHideDownloaded";
+        this.menuHideDownloaded.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.H;
+        this.menuHideDownloaded.AccessibleName = "Hide books already downloaded";
+
+        //
+        // menuUnlock — remove DRM from encrypted books already downloaded
+        //
+        this.menuUnlock.Name = "menuUnlock";
+        this.menuUnlock.AccessibleName = "Remove DRM from downloaded books";
+
+        //
+        // menuCheckUpdates
+        //
+        this.menuCheckUpdates.Name = "menuCheckUpdates";
+        this.menuCheckUpdates.AccessibleName = "Check for updates";
+
+        //
         // menuExport — save the book list as a CSV file (opens in Excel or any editor)
         //
         this.menuExport.Name = "menuExport";
@@ -231,6 +303,7 @@ partial class MainForm
             this.menuShortcuts,
             this.menuKeys,
             this.menuHelpSeparator,
+            this.menuCheckUpdates,
             this.menuAbout,
         ]);
 

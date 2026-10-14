@@ -59,6 +59,10 @@ internal static class SelfTest
         CheckForm("Country sign-in", NewCountrySignInForm);
         CheckForm("Key prompt (AAXC)", () => new KeyPromptForm("book.aaxc", askKeyIv: true, askActivationBytes: false));
         CheckForm("Key prompt (AAX)", () => new KeyPromptForm("book.aax", askKeyIv: false, askActivationBytes: true));
+        CheckForm("Player", () => new PlayerForm(settings, Path.Combine(Path.GetTempPath(), "no-such-book.m4b"), "Test book"));
+        CheckPlayerPlays();
+        CheckTranslations();
+        CheckConversion();
 
         CheckProviderCatalog();
         CheckSignInRedirect();
@@ -90,6 +94,187 @@ internal static class SelfTest
         Console.Write(text);
 
         return _failures == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// The player really plays: a generated tone starts, its position moves, closing
+    /// remembers where it stopped, and opening it again resumes there. Muted, and
+    /// saved to a scratch settings file, so it makes no sound and touches nothing.
+    /// </summary>
+    private static void CheckPlayerPlays()
+    {
+        Line("== Player plays and resumes ==");
+
+        var folder = Path.Combine(Path.GetTempPath(), "audiobook-selftest-player");
+        Directory.CreateDirectory(folder);
+        var tone = Path.Combine(folder, "tone.wav");
+        WriteTone(tone, seconds: 12);
+
+        var settings = new AppSettings { SavePath = Path.Combine(folder, "settings.json") };
+
+        bool WaitFor(Func<bool> condition, int milliseconds)
+        {
+            var until = DateTime.UtcNow.AddMilliseconds(milliseconds);
+            while (DateTime.UtcNow < until)
+            {
+                Application.DoEvents();
+                if (condition())
+                    return true;
+                Thread.Sleep(50);
+            }
+            return condition();
+        }
+
+        try
+        {
+            TimeSpan stoppedAt;
+            using (var player = new PlayerForm(settings, tone, "Test tone") { Muted = true })
+            {
+                player.Show();
+                if (!WaitFor(() => player.IsPlaying && player.Position > TimeSpan.FromSeconds(1.5), 8000))
+                {
+                    Fail($"the player did not play a WAV file (status: \"{player.StatusText}\")");
+                    player.Close();
+                    return;
+                }
+                stoppedAt = player.Position;
+                player.Close();
+            }
+
+            var saved = settings.PlaybackPositions.GetValueOrDefault(tone);
+            if (saved < 1)
+            {
+                Fail("closing the player did not remember where it stopped");
+                return;
+            }
+
+            using (var again = new PlayerForm(settings, tone, "Test tone") { Muted = true })
+            {
+                again.Show();
+                var resumed = WaitFor(() => again.IsPlaying && again.Position >= TimeSpan.FromSeconds(saved - 0.5), 8000);
+                var status = again.StatusText;
+                again.Close();
+
+                if (!resumed)
+                    Fail($"reopening did not resume at {saved:0.0} s (status: \"{status}\")");
+                else
+                    Line($"   played {stoppedAt.TotalSeconds:0.0} s, remembered {saved:0.0} s, and resumed there when reopened");
+            }
+        }
+        catch (Exception ex)
+        {
+            Fail($"the player could not be checked: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            try { Directory.Delete(folder, recursive: true); } catch { /* best effort */ }
+            Line("");
+        }
+    }
+
+    /// <summary>
+    /// The conversions the DRM removal ends in really work in this build: one M4B,
+    /// one MP3, and one MP3 per chapter. Run from the published single file, this is
+    /// also what proves the MP3 encoder's native code travelled inside it.
+    /// </summary>
+    private static void CheckConversion()
+    {
+        Line("== M4B, MP3 and chapter conversion ==");
+
+        var folder = Path.Combine(Path.GetTempPath(), "audiobook-selftest-convert");
+        try
+        {
+            if (Directory.Exists(folder))
+                Directory.Delete(folder, recursive: true);
+            Directory.CreateDirectory(folder);
+
+            var source = Path.Combine(folder, "tiny.m4b");
+            using (var resource = typeof(SelfTest).Assembly.GetManifestResourceStream("SelfTest.tiny.m4b")!)
+            using (var file = File.Create(source))
+                resource.CopyTo(file);
+
+            var book = new BookInfo("audible", "TINY", "Tiny Book", "Self Test", "", 0, null, null, null)
+            {
+                Description = "A three-second book.",
+                Series = "Self-test series",
+            };
+            IReadOnlyList<ChapterMark> chapters =
+            [
+                new("One", TimeSpan.Zero, TimeSpan.FromSeconds(1.5)),
+                new("Two", TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(1.5)),
+            ];
+
+            string Convert(string format, bool split, string name)
+            {
+                var settings = new AppSettings
+                {
+                    SavePath = Path.Combine(folder, "settings.json"),
+                    OutputFolder = folder, OutputFormat = format, SplitByChapter = split, EmbedBookInfo = true,
+                };
+                using var input = File.OpenRead(source);
+                using var mp4 = new AAXClean.Mp4File(input, input.Length);
+                var output = Path.Combine(folder, name + (format == "mp3" ? ".mp3" : ".m4b"));
+                return Task.Run(() => new DownloadManager(settings)
+                        .ConvertAsync(mp4, output, book, null, null, CancellationToken.None, chapters))
+                    .GetAwaiter().GetResult();
+            }
+
+            var m4b = Convert("m4b", false, "whole");
+            TimeSpan length;
+            using (var check = File.OpenRead(m4b))
+            using (var mp4 = new AAXClean.Mp4File(check, check.Length))
+                length = mp4.Duration;
+            var mp3 = Convert("mp3", false, "whole-mp3");
+            var split = Convert("mp3", true, "split");
+            var parts = Directory.Exists(split) ? Directory.GetFiles(split, "*.mp3") : [];
+
+            if (Math.Abs(length.TotalSeconds - 3) > 0.5)
+                Fail($"conversion: the M4B is {length.TotalSeconds:0.0} s long instead of 3");
+            else if (!File.Exists(mp3) || new FileInfo(mp3).Length < 1000)
+                Fail("conversion: no MP3 was written (the MP3 encoder did not load)");
+            else if (parts.Length != 2 || parts.Any(p => new FileInfo(p).Length < 500))
+                Fail($"conversion: splitting into chapters made {parts.Length} usable files instead of 2");
+            else
+                Line($"   one M4B of {length.TotalSeconds:0.0} s, one MP3 of {new FileInfo(mp3).Length:n0} bytes, " +
+                     $"and {parts.Length} chapter MP3s ({string.Join(", ", parts.Select(Path.GetFileName))})");
+        }
+        catch (Exception ex)
+        {
+            Fail($"conversion could not be checked: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            try { Directory.Delete(folder, recursive: true); } catch { /* best effort */ }
+            Line("");
+        }
+    }
+
+    private static void CheckTranslations()
+    {
+        Line("== Translations ==");
+        var problems = Strings.TranslationProblems().ToList();
+        foreach (var problem in problems)
+            Fail($"translation: {problem}");
+        if (problems.Count == 0)
+            Line($"   {Strings.AvailableLanguages.Count} interface languages: every text is translated, every key exists, every placeholder kept");
+        Line("");
+    }
+
+    /// <summary>A plain 16-bit mono WAV with a 440 Hz tone.</summary>
+    private static void WriteTone(string path, int seconds)
+    {
+        const int rate = 22050;
+        var samples = rate * seconds;
+        using var writer = new BinaryWriter(File.Create(path));
+        writer.Write("RIFF"u8);
+        writer.Write(36 + samples * 2);
+        writer.Write("WAVEfmt "u8);
+        writer.Write(16); writer.Write((short)1); writer.Write((short)1);
+        writer.Write(rate); writer.Write(rate * 2); writer.Write((short)2); writer.Write((short)16);
+        writer.Write("data"u8);
+        writer.Write(samples * 2);
+        for (var i = 0; i < samples; i++)
+            writer.Write((short)(Math.Sin(2 * Math.PI * 440 * i / rate) * 8000));
     }
 
     private static void CheckForm(string name, Func<Form> factory)
@@ -232,6 +417,7 @@ internal static class SelfTest
         yield return ("Country sign-in", NewCountrySignInForm);
         yield return ("Key prompt (AAXC)", () => new KeyPromptForm("book.aaxc", askKeyIv: true, askActivationBytes: false));
         yield return ("Key prompt (AAX)", () => new KeyPromptForm("book.aax", askKeyIv: false, askActivationBytes: true));
+        yield return ("Player", () => new PlayerForm(settings, Path.Combine(Path.GetTempPath(), "no-such-book.m4b"), "Test book"));
     }
 
     private static void CheckDuplicateTabIndex(Control control, string formName)

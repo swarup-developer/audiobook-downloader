@@ -59,6 +59,7 @@ internal sealed class AudibleSignInForm : Form
         MinimumSize = new Size(620, 500);
         ShowInTaskbar = false;
         AutoScaleMode = AutoScaleMode.Font;
+        Strings.ApplyDirection(this);
         AccessibleName = Strings.T("Login.Title");
         AccessibleRole = AccessibleRole.Dialog;
 

@@ -11,6 +11,10 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     private readonly BindingSource _booksBinding = new();
     private readonly BindingSource _queueBinding = new();
 
+    /// <summary>What the provider returned for the last search.</summary>
+    private List<BookInfo> _found = [];
+
+    /// <summary>What the list shows: <see cref="_found"/>, sorted, without hidden rows.</summary>
     private List<BookInfo> _books = [];
     private QueueItem? _lastAnnounced;
     private Panel _notifyPanel = null!;
@@ -59,7 +63,10 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
 
         // The queue is kept in a file beside the settings, so a batch that is
         // interrupted by closing the app is picked up again by the next run.
-        _queue = new DownloadQueue(new DownloadManager(_settings), QueueStore.Default());
+        _queue = new DownloadQueue(new DownloadManager(_settings), QueueStore.Default())
+        {
+            Parallelism = () => _settings.MaxParallelDownloads,
+        };
         Log.MessageLogged += OnLogMessage;
         _queue.Changed += OnQueueChanged;
         _queue.QueueFinished += OnQueueFinished;
@@ -119,9 +126,19 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             // message does not talk over the first screen's own.
             var unfinished = ResumeUnfinishedDownloads();
 
+            // A remembered Audible sign-in is simply used: no button to press, and no
+            // sign-in page unless the saved one has stopped working.
+            await ResumeAudibleSessionAsync();
+
             await OnProviderChangedAsync();
 
             AnnounceUnfinishedDownloads(unfinished);
+
+            if (_settings.AudibleAutoDownloadNew && _audible.IsConnected)
+                RunSafely(DownloadNewPurchasesAsync, "looking for new Audible books");
+
+            if (_settings.CheckForUpdates)
+                RunSafely(() => CheckForUpdatesAsync(quiet: true), "checking for updates");
         };
 
         FormClosing += (_, _) =>
@@ -196,6 +213,14 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         menuOpenFolder.Click += (_, _) => OpenDownloadFolder();
         menuKeys.Click += (_, _) => ShowDecryptionKeyHelp();
         menuExport.Click += (_, _) => ExportBookList();
+        menuPlay.Click += (_, _) => PlaySelectedBook();
+        menuUnlock.Click += (_, _) => RemoveDrmFromDownloads(askFirst: false);
+        menuSortTitle.Click += (_, _) => SetSortOrder("title", "Main.SortNameTitle");
+        menuSortAuthor.Click += (_, _) => SetSortOrder("author", "Main.SortNameAuthor");
+        menuSortLength.Click += (_, _) => SetSortOrder("length", "Main.SortNameLength");
+        menuSortAdded.Click += (_, _) => SetSortOrder("added", "Main.SortNameAdded");
+        menuHideDownloaded.Click += (_, _) => ToggleHideDownloaded();
+        menuCheckUpdates.Click += (_, _) => RunSafely(() => CheckForUpdatesAsync(quiet: false), "checking for updates");
 
         // The queue's actions, reachable from the queue's own menu AND from the
         // keyboard shortcuts. They call the same methods, so the two cannot drift
@@ -262,6 +287,19 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
 
         menuOpenFolder.Text = Strings.T("Main.OpenFolder");
         menuExport.Text = Strings.T("Menu.Export");
+        foreach (var (item, key) in new (ToolStripMenuItem, string)[]
+        {
+            (menuPlay, "Menu.Play"), (menuView, "Menu.View"), (menuSortTitle, "Menu.SortTitle"),
+            (menuSortAuthor, "Menu.SortAuthor"), (menuSortLength, "Menu.SortLength"),
+            (menuSortAdded, "Menu.SortAdded"), (menuHideDownloaded, "Menu.HideDownloaded"),
+            (menuCheckUpdates, "Menu.CheckUpdates"), (menuUnlock, "Menu.UnlockExisting"),
+        })
+        {
+            item.Text = Strings.T(key);
+            item.AccessibleName = Strings.Plain(Strings.T(key)).TrimEnd('…', '.').Trim();
+        }
+        UpdateViewMenu();
+        Strings.ApplyDirection(this);
         menuExport.AccessibleName = Strings.Plain(Strings.T("Menu.Export")).TrimEnd('…', '.');
         BookInfo.AlreadyDownloadedText = Strings.T("Main.AlreadyDownloaded");
         menuKeys.Text = Strings.T("Main.Keys");
@@ -377,7 +415,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         // selection to settle.
         ShowProviderControls(provider);
         _loadGeneration++;
-        _books = [];
+        _found = [];
         RefreshBookList();
         SetLibraryHint(Strings.T("Main.Loading"));
 
@@ -416,7 +454,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         // library to show, and the app must not invent one.
         if (provider is AudibleProvider audible && !audible.IsConnected)
         {
-            _books = [];
+            _found = [];
             RefreshBookList();
             SetLibraryHint(Strings.T("Audible.SignedOutHint"));
             SetProviderStatus(Strings.T("Audible.SignedOutShort"));
@@ -427,14 +465,14 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         SetProviderStatus(provider.RequiresLogin && !provider.IsConnected
             ? Strings.T("Main.NotSignedIn")
             : provider.HasDrm
-                ? Strings.T("Main.HasDrm")
+                ? Strings.T(_settings.DrmRemovalEnabled ? "Main.HasDrm" : "Main.DrmKept")
                 : Strings.T("Main.NoDrm"));
 
         // "Load my library automatically after signing in" off: wait for an explicit search.
         if (provider is AudibleProvider && !_settings.AudibleLoadLibraryAfterSignIn &&
             string.IsNullOrWhiteSpace(searchBox.Text))
         {
-            _books = [];
+            _found = [];
             RefreshBookList();
             SetLibraryHint(Strings.T("Audible.PressSearch"));
             return;
@@ -618,7 +656,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
 
         if (provider is AudibleProvider audible && !audible.IsConnected)
         {
-            _books = [];
+            _found = [];
             RefreshBookList();
             SetLibraryHint(Strings.T("Audible.SignedOutHint"));
             SetStatus(Strings.T("Audible.SignedOutStatus"));
@@ -639,7 +677,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             if (generation != _loadGeneration || providerCombo.SelectedItem != provider)
                 return;
 
-            _books = [.. found];
+            _found = [.. found];
             if (!string.IsNullOrWhiteSpace(query))
             {
                 _settings.AddSearch(provider.Id, query);
@@ -647,20 +685,25 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             }
             RefreshBookList();
 
-            SetLibraryHint(_books.Count == 0 ? Strings.T("Main.NoBooks") : "");
+            var hidden = _found.Count - _books.Count;
+            SetLibraryHint(_books.Count > 0 ? ""
+                : hidden > 0 ? Strings.T("Main.AllHidden")
+                : Strings.T("Main.NoBooks"));
             var language = provider is ILanguageFilter { CurrentLanguage.Length: > 0 } &&
                            languageCombo.SelectedItem is LanguageOption { Code.Length: > 0 } chosen
                 ? chosen.DisplayName
                 : null;
-            SetStatus(language is null
-                ? string.Format(Strings.T("Main.BooksFound"), _books.Count)
-                : string.Format(Strings.T("Main.BooksFoundIn"), _books.Count, language));
+            SetStatus(hidden > 0
+                ? string.Format(Strings.T("Main.HiddenCount"), _books.Count, hidden)
+                : language is null
+                    ? string.Format(Strings.T("Main.BooksFound"), _books.Count)
+                    : string.Format(Strings.T("Main.BooksFoundIn"), _books.Count, language));
         }
         catch (NotSignedInException ex)
         {
             if (generation != _loadGeneration)
                 return;
-            _books = [];
+            _found = [];
             RefreshBookList();
             SetLibraryHint(Strings.T("Audible.SignedOutHint"));
             SetStatus(ex.Message);
@@ -669,7 +712,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         {
             if (generation != _loadGeneration)
                 return;
-            _books = [];
+            _found = [];
             RefreshBookList();
             Log.Error($"Could not list books: {ex.Message}");
             SetLibraryHint(Strings.T("Main.ListFailed"));
@@ -679,11 +722,72 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
 
     private void RefreshBookList()
     {
-        _books = [.. _books.Select(MarkDownloaded)];
+        _found = [.. _found.Select(MarkDownloaded)];
+        _books = ArrangeBooks(_found);
         _booksBinding.DataSource = _books;
         _booksBinding.ResetBindings(false);
         if (libraryList.Items.Count > 0)
             libraryList.SelectedIndex = 0;
+    }
+
+    /// <summary>The rows in the chosen order, without the downloaded ones when those are hidden.</summary>
+    private List<BookInfo> ArrangeBooks(IEnumerable<BookInfo> books)
+    {
+        if (_settings.HideDownloaded)
+            books = books.Where(book => !book.AlreadyDownloaded);
+
+        var byTitle = StringComparer.CurrentCultureIgnoreCase;
+        return (_settings.SortOrder switch
+        {
+            "author" => books.OrderBy(b => b.Author, byTitle).ThenBy(b => b.Series ?? "", byTitle).ThenBy(b => b.Title, byTitle),
+            "length" => books.OrderByDescending(b => b.LengthMinutes).ThenBy(b => b.Title, byTitle),
+            "added" => books.OrderByDescending(b => b.DateAdded ?? DateTimeOffset.MinValue).ThenBy(b => b.Title, byTitle),
+            _ => books.OrderBy(b => b.Title, byTitle),
+        }).ToList();
+    }
+
+    /// <summary>Re-sorts or re-filters the list in place, keeping the book the cursor was on.</summary>
+    private void RearrangeBooks()
+    {
+        var current = libraryList.SelectedItem as BookInfo;
+        _books = ArrangeBooks(_found);
+        _booksBinding.DataSource = _books;
+        _booksBinding.ResetBindings(false);
+
+        if (libraryList.Items.Count == 0)
+            return;
+
+        var index = current is null ? 0 : _books.FindIndex(b => b.BookId == current.BookId && b.ProviderId == current.ProviderId);
+        libraryList.ClearSelected();
+        libraryList.SelectedIndex = Math.Max(0, index);
+    }
+
+    private void SetSortOrder(string order, string nameKey)
+    {
+        _settings.SortOrder = order;
+        _settings.Save();
+        UpdateViewMenu();
+        RearrangeBooks();
+        SetStatus(string.Format(Strings.T("Main.SortedBy"), Strings.T(nameKey)));
+    }
+
+    private void ToggleHideDownloaded()
+    {
+        _settings.HideDownloaded = !_settings.HideDownloaded;
+        _settings.Save();
+        UpdateViewMenu();
+        RearrangeBooks();
+        SetStatus(Strings.T(_settings.HideDownloaded ? "Main.DownloadedHidden" : "Main.DownloadedShown"));
+    }
+
+    /// <summary>The ticks in the View menu say which order is in use and whether downloaded books are hidden.</summary>
+    private void UpdateViewMenu()
+    {
+        menuSortTitle.Checked = _settings.SortOrder is not ("author" or "length" or "added");
+        menuSortAuthor.Checked = _settings.SortOrder == "author";
+        menuSortLength.Checked = _settings.SortOrder == "length";
+        menuSortAdded.Checked = _settings.SortOrder == "added";
+        menuHideDownloaded.Checked = _settings.HideDownloaded;
     }
 
     /// <summary>The row says "already downloaded" when its file is in the download folder.</summary>
@@ -697,19 +801,21 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     /// <summary>Re-checks which rows are downloaded, keeping the selection and position.</summary>
     private void RefreshDownloadedMarks()
     {
-        if (_books.Count == 0)
+        if (_found.Count == 0)
             return;
 
-        var selected = libraryList.SelectedIndices.Cast<int>().ToList();
+        var selected = libraryList.SelectedItems.Cast<BookInfo>().Select(b => b.BookId).ToHashSet();
         var top = libraryList.TopIndex;
 
-        _books = [.. _books.Select(MarkDownloaded)];
+        _found = [.. _found.Select(MarkDownloaded)];
+        _books = ArrangeBooks(_found);
         _booksBinding.DataSource = _books;
         _booksBinding.ResetBindings(false);
 
         libraryList.ClearSelected();
-        foreach (var index in selected.Where(i => i < libraryList.Items.Count))
-            libraryList.SetSelected(index, true);
+        for (var i = 0; i < _books.Count; i++)
+            if (selected.Contains(_books[i].BookId))
+                libraryList.SetSelected(i, true);
         if (top < libraryList.Items.Count)
             libraryList.TopIndex = top;
     }
@@ -827,18 +933,187 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         if (book.LengthMinutes > 0)
             lines.Add($"{Strings.T("Details.Length")}: " +
                       string.Format(Strings.T("Details.LengthValue"), book.LengthMinutes / 60, book.LengthMinutes % 60));
+        if (!DisplayText.IsMissing(book.Series))
+            lines.Add($"{Strings.T("Details.Series")}: {book.Series}");
         if (!DisplayText.IsMissing(book.Language))
             lines.Add($"{Strings.T("Details.Language")}: {book.Language}");
+        if (book.DateAdded is { } added)
+            lines.Add($"{Strings.T("Details.Added")}: {added.LocalDateTime:d}");
         if (ProviderRegistry.Find(book.ProviderId) is { } source)
             lines.Add($"{Strings.T("Details.Source")}: {source.DisplayName}");
         lines.Add($"{Strings.T("Details.Id")}: {book.BookId}");
         if (DownloadManager.FindExistingDownload(_settings, book) is { } file)
             lines.Add($"{Strings.T("Details.File")}: {file}");
-        if (!DisplayText.IsMissing(book.Info))
+        if (!DisplayText.IsMissing(book.Description))
+            lines.Add(Environment.NewLine + $"{Strings.T("Details.Description")}: {book.Description}");
+        else if (!DisplayText.IsMissing(book.Info))
             lines.Add("" + Environment.NewLine + book.Info);
 
         MessageBox.Show(this, string.Join(Environment.NewLine, lines), Strings.T("Details.WindowTitle"),
             MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    // ------------------------------------------------------------------
+    // the built-in player
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Plays the selected book: from the book list, or a finished row of the download
+    /// queue when that is where the cursor is. A LibriVox zip is unzipped first; an
+    /// e-book opens in the program Windows uses for it. Ctrl + P.
+    /// </summary>
+    private void PlaySelectedBook() => RunSafely(PlaySelectedBookAsync, "opening the player");
+
+    private async Task PlaySelectedBookAsync()
+    {
+        string? path = null;
+        string title;
+
+        if (ActiveControl == queueList && queueList.SelectedItem is QueueItem { Status: QueueStatus.Completed } done)
+        {
+            path = done.OutputFile;
+            title = done.Book.Title;
+        }
+        else if (libraryList.SelectedItem is BookInfo book)
+        {
+            path = DownloadManager.FindExistingDownload(_settings, book);
+            title = book.Title;
+            if (path is null)
+            {
+                SetStatus(string.Format(Strings.T("Main.NotDownloadedYet"), book.Title));
+                return;
+            }
+        }
+        else
+        {
+            SetStatus(Strings.T("Main.SelectFirst"));
+            return;
+        }
+
+        if (path is null || (!File.Exists(path) && !Directory.Exists(path)))
+        {
+            SetStatus(string.Format(Strings.T("Main.NotDownloadedYet"), title));
+            return;
+        }
+
+        var extension = Path.GetExtension(path).ToLowerInvariant();
+
+        if (extension == ".zip")
+        {
+            var folder = Path.Combine(Path.GetDirectoryName(path)!, Path.GetFileNameWithoutExtension(path));
+            if (PlayerForm.TracksIn(folder).Count == 0)
+            {
+                SetStatus(string.Format(Strings.T("Main.Unzipping"), title));
+                try
+                {
+                    await Task.Run(() => System.IO.Compression.ZipFile.ExtractToDirectory(path, folder, overwriteFiles: true));
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+                {
+                    Log.Error($"Could not unzip {path}: {ex.Message}");
+                    SetStatus(string.Format(Strings.T("Main.UnzipFailed"), ex.Message));
+                    return;
+                }
+            }
+            path = folder;
+        }
+        else if (File.Exists(path) && !PlayerForm.AudioExtensions.Contains(extension))
+        {
+            // An e-book or a web page: open it in its own program.
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true });
+            SetStatus(string.Format(Strings.T("Main.NotPlayable"), title));
+            return;
+        }
+
+        var previous = ActiveControl;
+        using (var player = new PlayerForm(_settings, path, title))
+            player.ShowDialog(this);
+
+        if (previous is { CanSelect: true } && previous.Visible)
+            previous.Focus();
+    }
+
+    // ------------------------------------------------------------------
+    // start-up: saved sign-in, new purchases, updates
+    // ------------------------------------------------------------------
+
+    private async Task ResumeAudibleSessionAsync()
+    {
+        if (!_settings.AudibleRememberSignIn || !_audible.HasSavedSignIn || _audible.IsConnected)
+            return;
+
+        try
+        {
+            if (await _audible.TryResumeSessionAsync())
+                SetStatus(Strings.T("Main.ResumedSignIn"));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Audible: the saved sign-in could not be used at start-up: {ex.Message}");
+        }
+    }
+
+    /// <summary>Queues the Audible books bought since the last check, when that setting is on.</summary>
+    private async Task DownloadNewPurchasesAsync()
+    {
+        var fresh = await _audible.GetNewPurchasesAsync(
+            book => DownloadManager.FindExistingDownload(_settings, book) is not null);
+
+        if (fresh.Count == 0)
+            return;
+
+        foreach (var book in fresh)
+            _queue.Enqueue(_audible, book);
+        _queue.Start();
+
+        Log.Info($"Audible: {fresh.Count} new book(s) queued automatically.");
+        SetStatus(string.Format(Strings.T("Main.NewPurchases"), fresh.Count));
+    }
+
+    /// <summary>
+    /// Asks GitHub for a newer release. Quietly at start-up (a status line only when
+    /// there is one), or out loud from the Help menu.
+    /// </summary>
+    private async Task CheckForUpdatesAsync(bool quiet)
+    {
+        var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0);
+        var shown = current.ToString(3);
+
+        UpdateInfo? update;
+        try
+        {
+            update = await UpdateChecker.CheckAsync(current);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Warn($"Update check failed: {ex.Message}");
+            if (!quiet)
+                SetStatus(string.Format(Strings.T("Main.UpdateFailed"), ex.Message));
+            return;
+        }
+
+        if (update is null)
+        {
+            if (!quiet)
+                SetStatus(string.Format(Strings.T("Main.UpToDate"), shown));
+            return;
+        }
+
+        var latest = update.Latest.ToString(3);
+        Log.Info($"Version {latest} is available (running {shown}).");
+
+        if (quiet)
+        {
+            SetStatus(string.Format(Strings.T("Main.UpdateStatus"), latest));
+            return;
+        }
+
+        var answer = MessageBox.Show(this,
+            string.Format(Strings.T("Main.UpdateAvailable"), latest, shown),
+            Strings.T("Main.UpdateAvailableTitle"),
+            MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+        if (answer == DialogResult.Yes)
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = update.Url, UseShellExecute = true });
     }
 
     /// <summary>
@@ -1224,6 +1499,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     private async Task OpenSettingsAsync(int section)
     {
         var previous = ActiveControl;
+        var drmWasOn = _settings.DrmRemovalEnabled;
 
         using (var dialog = new SettingsForm(_settings, _audible, section))
         {
@@ -1241,6 +1517,50 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             providerCombo.Focus();
 
         await OnProviderChangedAsync();
+
+        // Just switched on: offer to unlock the books that were saved with their DRM.
+        if (!drmWasOn && _settings.DrmRemovalEnabled)
+            RemoveDrmFromDownloads(askFirst: true);
+    }
+
+    /// <summary>
+    /// Queues every encrypted Audible book in the download folder whose keys are
+    /// known, to have its DRM removed. Nothing is downloaded again.
+    /// </summary>
+    private void RemoveDrmFromDownloads(bool askFirst)
+    {
+        if (!_settings.DrmRemovalEnabled)
+        {
+            SetStatus(Strings.T("Drm.TurnOnFirst"));
+            return;
+        }
+
+        var files = DownloadManager.FindEncryptedDownloads(_settings)
+            .Where(f => !_queue.Items.Any(i => i.Book.BookId == f && i.Status is QueueStatus.Pending or QueueStatus.Active))
+            .ToList();
+
+        if (files.Count == 0)
+        {
+            if (!askFirst)
+                SetStatus(Strings.T("Drm.NoneLeft"));
+            return;
+        }
+
+        var answer = MessageBox.Show(this, string.Format(Strings.T("Drm.ConvertExisting"), files.Count),
+            Strings.T("Drm.ConvertTitle"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes)
+            return;
+
+        if (ProviderRegistry.Find(LocalFilesProvider.ProviderId) is not { } local)
+            return;
+
+        foreach (var file in files)
+            _queue.Enqueue(local, new BookInfo(LocalFilesProvider.ProviderId, file,
+                Path.GetFileNameWithoutExtension(file), "", "", 0, null, new Uri(file).AbsoluteUri,
+                Path.GetExtension(file).ToUpperInvariant()));
+        _queue.Start();
+
+        SetStatus(string.Format(Strings.T("Drm.Queued"), files.Count));
     }
 
     /// <summary>
@@ -1272,7 +1592,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
 
         if (providerCombo.SelectedItem is AudibleProvider && !_audible.IsConnected)
         {
-            _books = [];
+            _found = [];
             RefreshBookList();
             SetLibraryHint(Strings.T("Audible.SignedOutHint"));
             SetProviderStatus(Strings.T("Audible.SignedOutShort"));

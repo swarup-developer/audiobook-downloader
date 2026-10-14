@@ -1,3 +1,4 @@
+using AAXClean.Codecs;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
@@ -40,19 +41,30 @@ public sealed partial class DownloadManager
         var folder = FolderFor(_settings, book);
         Directory.CreateDirectory(folder);
 
-        var ext = ticket.NeedsDecryption
-            ? Path.GetExtension(ticket.Url.ToString()).ToLowerInvariant()
-            : (string.IsNullOrWhiteSpace(ticket.SuggestedExtension) ? ".zip" : ticket.SuggestedExtension);
+        // The extension comes from the format, never from the address: Audible's
+        // addresses end in a long signed query string, and taking the extension from
+        // the whole address put that string into the file name, which Windows refuses.
+        var ext = ticket.Format switch
+        {
+            TicketFormat.Aaxc => ".aaxc",
+            TicketFormat.Aax => ".aax",
+            _ => string.IsNullOrWhiteSpace(ticket.SuggestedExtension) ? ".zip" : ticket.SuggestedExtension,
+        };
 
         // Never clobber a file that is already there. A ".part" file from an earlier
         // attempt deliberately does not count, so retrying resumes that download.
-        var decrypting = ticket.NeedsDecryption && _settings.RemoveDrm;
+        var decrypting = ticket.NeedsDecryption && _settings.DrmRemovalEnabled;
+
+        // A file already on this computer is decrypted where it is, never copied first.
+        if (decrypting && ticket.Url.IsFile)
+            return await DecryptLocalFileAsync(book, ticket, progress, ct);
+        var finalExtension = decrypting && WantsMp3 ? ".mp3" : ".m4b";
         var baseName = decrypting
-            ? UniqueBaseName(folder, MakeFileName(book), ext, ".m4b")
+            ? UniqueBaseName(folder, MakeFileName(book), ext, finalExtension)
             : UniqueBaseName(folder, MakeFileName(book), ext);
 
         var encryptedPath = Path.Combine(folder, baseName + ext);
-        var finalPath = Path.Combine(folder, baseName + ".m4b");
+        var finalPath = Path.Combine(folder, baseName + finalExtension);
 
         try
         {
@@ -70,14 +82,15 @@ public sealed partial class DownloadManager
                 encryptedPath = downloadedPath;
                 finalPath = Path.Combine(
                     Path.GetDirectoryName(downloadedPath)!,
-                    Path.GetFileNameWithoutExtension(downloadedPath) + ".m4b");
+                    Path.GetFileNameWithoutExtension(downloadedPath) + finalExtension);
             }
 
             // 2) decrypt
             if (decrypting)
             {
                 progress?.Report(new DownloadProgress(DownloadPhase.Decrypting, 0, "Removing DRM…"));
-                var decryptedPath = await DecryptAsync(encryptedPath, finalPath, ticket, progress, ct);
+                var cover = await SaveCoverAsync(book, finalPath, ct);
+                var decryptedPath = await DecryptAsync(encryptedPath, finalPath, ticket, book, cover, progress, ct);
                 if (decryptedPath is null)
                     return new DownloadResult(false, encryptedPath,
                         "Decryption failed. The encrypted original is kept so nothing is lost.");
@@ -93,7 +106,12 @@ public sealed partial class DownloadManager
                 return new DownloadResult(true, decryptedPath, null);
             }
 
-            // 3) plain (DRM-free) file: keep it exactly as downloaded
+            // 3) plain (DRM-free) file, or an Audible book kept with its DRM: keep it
+            // exactly as downloaded. The keys are remembered, so turning DRM removal
+            // on later can still unlock it without downloading it again.
+            if (ticket.NeedsDecryption)
+                RememberKeys(encryptedPath, ticket);
+            await SaveCoverAsync(book, encryptedPath, ct);
             progress?.Report(new DownloadProgress(DownloadPhase.Done, 100, $"Saved {encryptedPath}"));
             return new DownloadResult(true, encryptedPath, null);
         }
@@ -146,9 +164,13 @@ public sealed partial class DownloadManager
                 return null;
 
             var name = MakeFileName(book);
-            return FinishedExtensions
+            var file = FinishedExtensions
                 .Select(extension => Path.Combine(folder, name + extension))
                 .FirstOrDefault(File.Exists);
+
+            // A book split into chapters is a folder of its own.
+            var chapters = Path.Combine(folder, name);
+            return file ?? (Directory.Exists(chapters) && Directory.EnumerateFiles(chapters).Any() ? chapters : null);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -305,6 +327,8 @@ public sealed partial class DownloadManager
             await target.WriteAsync(buffer.AsMemory(0, read), stall.Token);
             written += read;
 
+            await SpeedLimit.WaitAsync(read, _settings.SpeedLimitKBps, ct);
+
             // Bytes arrived, so the connection is alive: give it another minute.
             stall.CancelAfter(StallTimeout);
 
@@ -325,16 +349,28 @@ public sealed partial class DownloadManager
         return written >= total;
     }
 
-    private static HttpClient CreateHttpClient() =>
-        new(new HttpClientHandler { AllowAutoRedirect = true })
+    private static HttpClient CreateHttpClient()
+    {
+        var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true })
         {
             // The transfer may legitimately take hours; the stall timer above is
             // what protects against a connection that has died.
             Timeout = Timeout.InfiniteTimeSpan,
         };
 
+        // Audible's content servers answer a request without a User-Agent with
+        // 403 Forbidden, which made every Audible download fail.
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("AudiobookDownloader/" +
+            (typeof(DownloadManager).Assembly.GetName().Version?.ToString(3) ?? "1.0"));
+        return client;
+    }
+
     private static bool IsTransient(Exception ex) => ex switch
     {
+        // "Forbidden" or "Not found" will not change by asking again; only a timeout,
+        // "too many requests" or a server error is worth another attempt.
+        HttpRequestException { StatusCode: { } status } =>
+            (int)status >= 500 || status is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests,
         HttpRequestException => true,
         IOException => true,
         System.Net.Sockets.SocketException => true,
@@ -403,12 +439,105 @@ public sealed partial class DownloadManager
         return Promote(partPath, dest);
     }
 
-    /// <summary>Decrypt the file, returning the path of the DRM-free result, or null on failure.</summary>
-    private async Task<string?> DecryptAsync(string input, string output, DownloadTicket ticket, IProgress<DownloadProgress>? progress, CancellationToken ct)
+    /// <summary>The keys that unlock an encrypted file, stored against its path.</summary>
+    private void RememberKeys(string encryptedPath, DownloadTicket ticket)
     {
-        // Decrypt into a partial file too, so an interrupted decryption cannot be
-        // mistaken for a finished one.
-        var partPath = output + PartExtension;
+        try
+        {
+            _settings.CacheKeys(encryptedPath, new CachedKeys(encryptedPath, ticket.Key, ticket.Iv, ticket.ActivationBytes));
+            Log.Info($"Kept with DRM: {Path.GetFileName(encryptedPath)}. Its keys are remembered for later.");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"Could not remember the keys for {encryptedPath}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Removes DRM from an AAX or AAXC file already on disk. A file in the download
+    /// folder (a book downloaded earlier with its DRM) gets its DRM-free copy beside
+    /// it and, when the settings say so, the encrypted original is removed once the
+    /// copy has been checked. A file anywhere else is converted into the download
+    /// folder and never touched.
+    /// </summary>
+    private async Task<DownloadResult> DecryptLocalFileAsync(BookInfo book, DownloadTicket ticket,
+        IProgress<DownloadProgress>? progress, CancellationToken ct)
+    {
+        var source = ticket.Url.LocalPath;
+        if (!File.Exists(source))
+            return new DownloadResult(false, null, $"The file {source} no longer exists.");
+
+        var ours = IsInside(source, _settings.OutputFolder);
+        var folder = ours ? Path.GetDirectoryName(source)! : FolderFor(_settings, book);
+        Directory.CreateDirectory(folder);
+
+        var extension = WantsMp3 ? ".mp3" : ".m4b";
+        var name = ours ? Path.GetFileNameWithoutExtension(source) : MakeFileName(book);
+        var output = Path.Combine(folder, UniqueBaseName(folder, name, extension) + extension);
+
+        progress?.Report(new DownloadProgress(DownloadPhase.Decrypting, 0, "Removing DRM…"));
+        var result = await DecryptAsync(source, output, ticket, book, null, progress, ct);
+        if (result is null)
+            return new DownloadResult(false, null, "Decryption failed. The encrypted file was left as it was.");
+
+        if (ours && _settings.DeleteIntermediateFile)
+        {
+            DeleteFile(source);
+            lock (_settings) _settings.KeyCache.RemoveAll(k => string.Equals(k.FileName, source, StringComparison.OrdinalIgnoreCase));
+        }
+
+        progress?.Report(new DownloadProgress(DownloadPhase.Done, 100, $"Saved {result}"));
+        return new DownloadResult(true, result, null);
+    }
+
+    private static bool IsInside(string path, string folder)
+    {
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var root = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Encrypted Audible files in the download folder whose keys are known, so their
+    /// DRM can be removed without downloading them again.
+    /// </summary>
+    public static IReadOnlyList<string> FindEncryptedDownloads(AppSettings settings)
+    {
+        try
+        {
+            if (!Directory.Exists(settings.OutputFolder))
+                return [];
+
+            return Directory.EnumerateFiles(settings.OutputFolder, "*.*", SearchOption.AllDirectories)
+                .Where(f => f.EndsWith(".aaxc", StringComparison.OrdinalIgnoreCase) ||
+                            f.EndsWith(".aax", StringComparison.OrdinalIgnoreCase))
+                .Where(f => settings.FindKeys(f) is { } keys &&
+                            (!string.IsNullOrEmpty(keys.Key) || !string.IsNullOrEmpty(keys.ActivationBytes)))
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    private bool WantsMp3 => string.Equals(_settings.OutputFormat, "mp3", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Decrypt the file, returning the path of the DRM-free result (a file, or a
+    /// folder of chapter files), or null on failure.
+    /// </summary>
+    private async Task<string?> DecryptAsync(string input, string output, DownloadTicket ticket, BookInfo book,
+        byte[]? cover, IProgress<DownloadProgress>? progress, CancellationToken ct)
+    {
         try
         {
             await using var fs = File.OpenRead(input);
@@ -419,21 +548,286 @@ public sealed partial class DownloadManager
             else
                 aax.SetDecryptionKey(ticket.ActivationBytes!);
 
-            await using var destination = new FileStream(partPath, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true);
-            var op = aax.ConvertToMp4aAsync(destination);
+            var written = await ConvertAsync(aax, output, book, cover, progress, ct, ticket.Chapters);
+            Verify(written, aax.Duration);
+            return written;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Error($"Decryption failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Makes sure the DRM-free copy really is the whole book: every chapter file is
+    /// there and a single M4B plays for as long as the original. A copy that falls
+    /// short is deleted and reported, so the encrypted original is never given up
+    /// for a broken one.
+    /// </summary>
+    private static void Verify(string written, TimeSpan expected)
+    {
+        if (Directory.Exists(written))
+        {
+            if (!Directory.EnumerateFiles(written).Any(f => new FileInfo(f).Length > 0))
+                throw new IOException("The chapter files were not written.");
+            return;
+        }
+
+        var info = new FileInfo(written);
+        if (!info.Exists || info.Length == 0)
+            throw new IOException("The DRM-free file was not written.");
+
+        if (!written.EndsWith(".m4b", StringComparison.OrdinalIgnoreCase) || expected <= TimeSpan.Zero)
+            return;
+
+        TimeSpan actual;
+        using (var check = File.OpenRead(written))
+        using (var mp4 = new AAXClean.Mp4File(check, check.Length))
+            actual = mp4.Duration;
+
+        if (actual.TotalSeconds < expected.TotalSeconds * 0.98)
+        {
+            DeleteFile(written);
+            throw new IOException(
+                $"The DRM-free copy is {actual:hh\\:mm\\:ss} long but the book is {expected:hh\\:mm\\:ss}; it was discarded.");
+        }
+    }
+
+    /// <summary>
+    /// Writes an opened (and, for Audible, unlocked) audiobook out the way the
+    /// settings ask: one M4B or MP3, or one file per chapter, with the book's
+    /// details in its tags. Returns the file or chapter folder written.
+    /// </summary>
+    /// <remarks>Public so the self-test can drive it with an ordinary, unencrypted file.</remarks>
+    public async Task<string> ConvertAsync(AAXClean.Mp4File source, string output, BookInfo book,
+        byte[]? cover, IProgress<DownloadProgress>? progress, CancellationToken ct,
+        IReadOnlyList<ChapterMark>? chapters = null)
+    {
+        var chapterInfo = ToChapterInfo(chapters);
+        if (_settings.EmbedBookInfo)
+            WriteBookInfo(source, book, cover);
+
+        void Report(AAXClean.Mp4Operation op) =>
             op.ConversionProgressUpdate += (_, e) =>
                 progress?.Report(new DownloadProgress(DownloadPhase.Decrypting, e.FractionCompleted * 100,
-                    $"Removing DRM… {e.ProcessPosition:hh\\:mm\\:ss} / {e.EndTime:hh\\:mm\\:ss}"));
+                    $"Converting… {e.ProcessPosition:hh\\:mm\\:ss} / {e.EndTime:hh\\:mm\\:ss}"));
+
+        if (_settings.SplitByChapter)
+        {
+            chapterInfo ??= await ReadChaptersAsync(source, ct);
+            if (chapterInfo is not null)
+                return await SplitIntoChaptersAsync(source, chapterInfo, output, Report, ct);
+
+            Log.Warn($"'{book.Title}' has no usable chapter list, so it was saved as one file instead of one per chapter.");
+        }
+
+        // Write into a partial file, so an interrupted conversion cannot be mistaken
+        // for a finished one. The MP3 encoder writes its header at the end, so the
+        // file has to be readable and seekable as well.
+        var partPath = output + PartExtension;
+        try
+        {
+            await using (var destination = new FileStream(partPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 1 << 16, useAsync: true))
+            {
+                var op = WantsMp3
+                    ? AAXClean.Codecs.Mp4FileExtensions.ConvertToMp3Async(source, destination, source.GetDefaultLameConfig(), chapterInfo)
+                    : source.ConvertToMp4aAsync(destination, chapterInfo);
+                Report(op);
+                op.Start();
+                await op.OperationTask.WaitAsync(ct);
+
+                // The converter closes the stream itself when it finishes; flushing a
+                // closed stream throws, which used to fail every finished conversion.
+                if (destination.CanWrite)
+                    await destination.FlushAsync(ct);
+            }
+
+            return Promote(partPath, output);
+        }
+        catch
+        {
+            DeleteFile(partPath);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// One file per chapter, numbered so they play in order, in a folder named after
+    /// the book. Returns the folder.
+    /// </summary>
+    private async Task<string> SplitIntoChaptersAsync(AAXClean.Mp4File aax, Mpeg4Lib.ChapterInfo chapterInfo,
+        string output, Action<AAXClean.Mp4Operation> report, CancellationToken ct)
+    {
+        var parent = Path.GetDirectoryName(output)!;
+        var name = Path.GetFileNameWithoutExtension(output);
+        var folder = Path.Combine(parent, name);
+        for (var n = 2; Directory.Exists(folder) && Directory.EnumerateFileSystemEntries(folder).Any(); n++)
+            folder = Path.Combine(parent, $"{name} ({n})");
+        Directory.CreateDirectory(folder);
+
+        var extension = WantsMp3 ? ".mp3" : ".m4b";
+        var count = chapterInfo.Count;
+        var width = Math.Max(2, count.ToString().Length);
+        var opened = new List<Stream>();
+
+        string FileFor(int number, string? title) =>
+            Path.Combine(folder, $"{number.ToString().PadLeft(width, '0')} - " +
+                                 SafeName(string.IsNullOrWhiteSpace(title) ? $"Chapter {number}" : title, 100) + extension);
+
+        try
+        {
+            AAXClean.Mp4Operation op;
+            if (WantsMp3)
+            {
+                var lame = aax.GetDefaultLameConfig();
+                var number = 0;
+                op = AAXClean.Codecs.Mp4FileExtensions.ConvertToMultiMp3Async(aax, chapterInfo, split =>
+                {
+                    number++;
+                    split.TrackNumber = number;
+                    split.TrackCount = count;
+                    split.TrackTitle = split.Chapter.Title;
+                    split.LameConfig = lame;
+                    var stream = new FileStream(FileFor(number, split.Chapter.Title), FileMode.Create, FileAccess.ReadWrite);
+                    opened.Add(stream);
+                    split.OutputFile = stream;
+                }, lame);
+            }
+            else
+            {
+                var number = 0;
+                op = aax.ConvertToMultiMp4aAsync(chapterInfo, split =>
+                {
+                    number++;
+                    split.TrackNumber = number;
+                    split.TrackCount = count;
+                    split.TrackTitle = split.Chapter.Title;
+                    var stream = new FileStream(FileFor(number, split.Chapter.Title), FileMode.Create, FileAccess.ReadWrite);
+                    opened.Add(stream);
+                    split.OutputFile = stream;
+                });
+            }
+
+            report(op);
             op.Start();
             await op.OperationTask.WaitAsync(ct);
+            Log.Info($"Split into {count} chapter files in {folder}.");
+            return folder;
+        }
+        finally
+        {
+            foreach (var stream in opened)
+                try { await stream.DisposeAsync(); } catch { /* already closed */ }
+        }
+    }
 
-            await destination.FlushAsync(ct);
-            return Promote(partPath, output);
+    private static Mpeg4Lib.ChapterInfo? ToChapterInfo(IReadOnlyList<ChapterMark>? chapters)
+    {
+        if (chapters is not { Count: > 0 })
+            return null;
+
+        var info = new Mpeg4Lib.ChapterInfo(chapters[0].Start);
+        foreach (var chapter in chapters.Where(c => c.Length > TimeSpan.Zero))
+            info.AddChapter(chapter.Title, chapter.Length);
+        return info.Count > 0 ? info : null;
+    }
+
+    /// <summary>
+    /// The chapter list inside the file, or null when there is none or it cannot be
+    /// right: chapters that together cover less than nine tenths of the book would
+    /// cut it into slivers.
+    /// </summary>
+    private static async Task<Mpeg4Lib.ChapterInfo?> ReadChaptersAsync(AAXClean.Mp4File source, CancellationToken ct)
+    {
+        var info = source.Chapters;
+        if (info is null || info.Count == 0)
+        {
+            try
+            {
+                var read = source.GetChapterInfoAsync();
+                read.Start();
+                info = await read.OperationTask.WaitAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Log.Warn($"The chapter list could not be read: {ex.Message}");
+                return null;
+            }
+        }
+
+        if (info is null || info.Count < 2)
+            return null;
+
+        var covered = info.EndOffset - info.StartOffset;
+        if (source.Duration > TimeSpan.Zero && covered.TotalSeconds < source.Duration.TotalSeconds * 0.9)
+        {
+            Log.Warn($"The chapter list covers {covered:hh\\:mm\\:ss} of a {source.Duration:hh\\:mm\\:ss} book, so it is not used.");
+            return null;
+        }
+
+        return info;
+    }
+
+    /// <summary>
+    /// Puts the description, series, narrator and cover into the book's own tags, so
+    /// any player shows them. Only fills what Audible left empty, and never fails a
+    /// download over it.
+    /// </summary>
+    private static void WriteBookInfo(AAXClean.Mp4File aax, BookInfo book, byte[]? cover)
+    {
+        try
+        {
+            var tags = aax.AppleTags;
+            if (tags is null)
+                return;
+
+            if (!DisplayText.IsMissing(book.Description) && DisplayText.IsMissing(tags.LongDescription))
+                tags.LongDescription = book.Description;
+            if (!DisplayText.IsMissing(book.Description) && DisplayText.IsMissing(tags.Comment))
+                tags.Comment = book.Description!.Length > 250 ? book.Description[..250].TrimEnd() + "…" : book.Description;
+            if (!DisplayText.IsMissing(book.Narrator) && DisplayText.IsMissing(tags.Narrator))
+                tags.Narrator = book.Narrator;
+            if (!DisplayText.IsMissing(book.Series) && DisplayText.IsMissing(tags.Album))
+                tags.Album = book.Series;
+            if (cover is { Length: > 0 } && tags.Cover is not { Length: > 0 })
+                tags.Cover = cover;
         }
         catch (Exception ex)
         {
-            Log.Error($"Decryption failed: {ex.Message}");
-            DeleteFile(partPath);
+            Log.Warn($"Could not write the book's details into the file: {ex.Message}");
+        }
+    }
+
+    private static readonly HttpClient CoverHttp = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    /// <summary>
+    /// Fetches the cover picture, saving it next to the book as "name.jpg" when the
+    /// setting is on. Returns the picture for the tags, or null. Never fails a download.
+    /// </summary>
+    private async Task<byte[]?> SaveCoverAsync(BookInfo book, string bookPath, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(book.CoverUrl) || (!_settings.SaveCoverImage && !_settings.EmbedBookInfo))
+            return null;
+
+        try
+        {
+            var bytes = await CoverHttp.GetByteArrayAsync(book.CoverUrl, ct);
+            if (bytes.Length < 100)
+                return null;
+
+            if (_settings.SaveCoverImage)
+            {
+                var jpg = Path.Combine(Path.GetDirectoryName(bookPath)!, Path.GetFileNameWithoutExtension(bookPath) + ".jpg");
+                if (!File.Exists(jpg))
+                    await File.WriteAllBytesAsync(jpg, bytes, ct);
+            }
+
+            return bytes;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Warn($"Could not fetch the cover of '{book.Title}': {ex.Message}");
             return null;
         }
     }
@@ -457,4 +851,32 @@ public sealed partial class DownloadManager
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex MyWhitespaceRegex();
+}
+
+/// <summary>
+/// One speed limit shared by every download running at the same time, so two
+/// parallel downloads together stay under it.
+/// </summary>
+internal static class SpeedLimit
+{
+    private static readonly object Gate = new();
+    private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
+    private static double _allowedAt;   // seconds on the clock when the next byte may go
+
+    public static Task WaitAsync(int bytes, int kilobytesPerSecond, CancellationToken ct)
+    {
+        if (kilobytesPerSecond <= 0)
+            return Task.CompletedTask;
+
+        double wait;
+        lock (Gate)
+        {
+            var now = Clock.Elapsed.TotalSeconds;
+            // Unused allowance does not pile up for more than a second.
+            _allowedAt = Math.Max(_allowedAt, now - 1) + bytes / (kilobytesPerSecond * 1024.0);
+            wait = _allowedAt - now;
+        }
+
+        return wait > 0.005 ? Task.Delay(TimeSpan.FromSeconds(wait), ct) : Task.CompletedTask;
+    }
 }

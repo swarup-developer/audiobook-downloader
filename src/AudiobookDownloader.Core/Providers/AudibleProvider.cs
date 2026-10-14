@@ -37,6 +37,12 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
     private List<Item>? _library;
 
     /// <summary>
+    /// The library request in flight, shared by everyone who asks while it runs, so
+    /// signing in and choosing the provider at the same moment fetch it once.
+    /// </summary>
+    private Task<List<Item>>? _libraryLoad;
+
+    /// <summary>
     /// Raised the moment the live session appears or goes away, so every screen
     /// that shows account state updates from one signal.
     /// </summary>
@@ -142,7 +148,11 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
 
         _api = api;
         if (api is null)
+        {
             _library = null;
+            _libraryLoad = null;
+            lock (_podcastNames) _podcastNames.Clear();
+        }
 
         if (!changed)
             return;
@@ -215,15 +225,21 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
             throw new NotSignedInException(
                 "Not signed in to Audible. Press the Sign in button next to the provider list first.");
 
-        // The title lives in product_desc/product_attrs and the authors and narrators
-        // in contributors. Asking for product_attrs alone is why every book used to
-        // arrive without a title and be listed by its ASIN instead.
-        _library ??= await _api.GetAllLibraryItemsAsync(
-            new LibraryOptions
+        if (_library is null)
+        {
+            var load = _libraryLoad ??= LoadLibraryAsync(CancellationToken.None);
+            try
             {
-                ResponseGroups = LibraryResponseGroups,
-                NumberOfResultPerPage = 250,
-            });
+                _library = await load.WaitAsync(ct);
+            }
+            catch when (load.IsFaulted || load.IsCanceled)
+            {
+                // A failed read is not remembered, so the next search tries again.
+                if (ReferenceEquals(_libraryLoad, load))
+                    _libraryLoad = null;
+                throw;
+            }
+        }
 
         var words = (query ?? "").Split((char[]?)null,
             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -236,16 +252,7 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
             .Where(IsDownloadable)
             .Where(i => string.IsNullOrEmpty(language) ||
                         string.Equals(i.Language?.Trim(), language, StringComparison.OrdinalIgnoreCase))
-            .Select(i => new BookInfo(
-                ProviderId,
-                i.Asin!,
-                DisplayTitle(i),
-                DisplayCredits(i.Authors, BookInfo.UnknownAuthor),
-                DisplayCredits(i.Narrators, string.Empty),
-                LengthOf(i),
-                i.PictureLarge ?? i.PictureId,
-                null,
-                $"{LengthOf(i) / 60} hr {LengthOf(i) % 60} min"))
+            .Select(ToBookInfo)
             // Every word has to appear in the title, an author or a narrator, so
             // "harry stone" finds "Harry Potter and the Philosopher's Stone".
             .Where(b => words.All(w =>
@@ -256,6 +263,193 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
             .OrderBy(b => b.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    /// <summary>One library item as a row, with everything the details and the file tags use.</summary>
+    private BookInfo ToBookInfo(Item i)
+    {
+        var title = DisplayTitle(i);
+        // An episode says which show it is from, unless its own title already does.
+        if (_podcastNames.TryGetValue(i.Asin!, out var podcast) && !title.Contains(podcast, StringComparison.OrdinalIgnoreCase))
+            title = $"{podcast}: {title}";
+
+        return new BookInfo(
+            ProviderId,
+            i.Asin!,
+            title,
+            DisplayCredits(i.Authors, BookInfo.UnknownAuthor),
+            DisplayCredits(i.Narrators, string.Empty),
+            LengthOf(i),
+            CoverUrl(i),
+            null,
+            $"{LengthOf(i) / 60} hr {LengthOf(i) % 60} min")
+        {
+            Language = DisplayText.IsMissing(i.Language) ? null : Capitalise(i.Language!.Trim()),
+            Description = DisplayText.FirstReal("", i.PublisherSummary, i.MerchandisingSummary, i.Description) is { Length: > 0 } d
+                ? StripHtml(d)
+                : null,
+            Series = DescribeSeries(i.Series),
+            DateAdded = i.PurchaseDate != default ? i.PurchaseDate
+                : i.DateAdded != default ? new DateTimeOffset(DateTime.SpecifyKind(i.DateAdded, DateTimeKind.Utc))
+                : null,
+        };
+    }
+
+    /// <summary>Podcast episode ASIN to the podcast's own name, so an episode row says which show it is from.</summary>
+    private readonly Dictionary<string, string> _podcastNames = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The whole library, and — when asked for — the episodes of every podcast in it,
+    /// which the library lists only under their podcast.
+    /// </summary>
+    private async Task<List<Item>> LoadLibraryAsync(CancellationToken ct)
+    {
+        // The title lives in product_desc/product_attrs and the authors and narrators
+        // in contributors. Asking for product_attrs alone is why every book used to
+        // arrive without a title and be listed by its ASIN instead.
+        var items = await _api!.GetAllLibraryItemsAsync(
+            new LibraryOptions
+            {
+                ResponseGroups = LibraryResponseGroups,
+                NumberOfResultPerPage = 250,
+            });
+
+        if (!_settings.AudibleIncludePodcasts)
+            return items;
+
+        var parents = items.Where(i => !IsDownloadable(i) && !string.IsNullOrWhiteSpace(i.Asin)).ToList();
+        if (parents.Count == 0)
+            return items;
+
+        using var gate = new SemaphoreSlim(4);
+        var episodeLists = await Task.WhenAll(parents.Select(async parent =>
+        {
+            await gate.WaitAsync(ct);
+            try { return await GetEpisodesAsync(parent, ct); }
+            finally { gate.Release(); }
+        }));
+
+        var known = new HashSet<string>(items.Select(i => i.Asin ?? ""), StringComparer.OrdinalIgnoreCase);
+        var added = 0;
+        foreach (var episode in episodeLists.SelectMany(list => list))
+        {
+            if (episode.Asin is { } asin && known.Add(asin))
+            {
+                items.Add(episode);
+                added++;
+            }
+        }
+
+        Log.Info($"Audible: {parents.Count} podcast(s) in the library, {added} episode(s) listed.");
+        return items;
+    }
+
+    /// <summary>The episodes of one podcast, or none when Audible will not list them.</summary>
+    private async Task<IReadOnlyList<Item>> GetEpisodesAsync(Item parent, CancellationToken ct)
+    {
+        try
+        {
+            var options = new LibraryOptions { ResponseGroups = LibraryResponseGroups, NumberOfResultPerPage = 1000 };
+            var json = await _api!.GetLibraryAsync(
+                options.ToQueryString() + "&parent_asin=" + Uri.EscapeDataString(parent.Asin!));
+            ct.ThrowIfCancellationRequested();
+
+            var episodes = AudibleApi.Common.LibraryDtoV10.FromJson(json)?.Items ?? [];
+            var name = DisplayTitle(parent);
+            lock (_podcastNames)
+            {
+                foreach (var episode in episodes)
+                    if (episode.Asin is { } asin)
+                        _podcastNames[asin] = name;
+            }
+
+            return episodes.Where(e => IsDownloadable(e) && e.Asin != parent.Asin).ToList();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Warn($"Audible: could not list the episodes of \"{parent.Title}\": {ex.Message}");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Reconnects with the sign-in saved on this computer, without ever opening a
+    /// sign-in page. Used at start-up so a remembered account is simply signed in.
+    /// </summary>
+    public async Task<bool> TryResumeSessionAsync()
+    {
+        if (_api is not null)
+            return true;
+
+        if (!_settings.AudibleRememberSignIn || !File.Exists(IdentityFile))
+            return false;
+
+        var locale = Localization.Get(_settings.AudibleLocale ?? "us");
+        if (locale == Locale.Empty)
+            locale = Localization.Get("us");
+
+        var api = await TryReuseSavedSignInAsync(locale);
+        if (api is null)
+            return false;
+
+        SetSession(api);
+        Log.Info($"Audible: signed in again with the saved sign-in ({_settings.AudibleLocale}).");
+        return true;
+    }
+
+    /// <summary>
+    /// Books added to the library since the last check that have no file yet. The
+    /// first check only records the time, so turning the feature on never starts a
+    /// download of the whole library.
+    /// </summary>
+    public async Task<IReadOnlyList<BookInfo>> GetNewPurchasesAsync(Func<BookInfo, bool> alreadyDownloaded, CancellationToken ct = default)
+    {
+        var since = _settings.AudibleLastSync;
+        var now = DateTimeOffset.UtcNow;
+
+        // Everything, regardless of the language filter or a search.
+        var language = CurrentLanguage;
+        CurrentLanguage = "";
+        IReadOnlyList<BookInfo> all;
+        try { all = await GetBooksAsync("", ct); }
+        finally { CurrentLanguage = language; }
+
+        _settings.AudibleLastSync = now;
+        _settings.Save();
+
+        if (since is null)
+        {
+            Log.Info("Audible: automatic downloads are on; books bought from now on will be downloaded.");
+            return [];
+        }
+
+        return all.Where(b => b.DateAdded is { } added && added > since && !alreadyDownloaded(b)).ToList();
+    }
+
+    private static string? CoverUrl(Item i)
+    {
+        var url = i.ProductImages?.The1215?.ToString() ?? i.ProductImages?.The500?.ToString();
+        if (!string.IsNullOrWhiteSpace(url))
+            return url;
+
+        return DisplayText.IsMissing(i.PictureLarge) ? null : i.PictureLarge;
+    }
+
+    private static string? DescribeSeries(AudibleApi.Common.Series[]? series)
+    {
+        var first = series?.FirstOrDefault(s => !DisplayText.IsMissing(s?.SeriesName ?? s?.Title));
+        if (first is null)
+            return null;
+
+        var name = DisplayText.FirstReal("", first.SeriesName, first.Title);
+        return DisplayText.IsMissing(first.Sequence) ? name : $"{name}, Book {first.Sequence}";
+    }
+
+    private static string Capitalise(string text) =>
+        text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
+
+    private static string StripHtml(string html) =>
+        System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " "))
+            .Replace("  ", " ").Trim();
 
     private const LibraryOptions.ResponseGroupOptions LibraryResponseGroups =
         LibraryOptions.ResponseGroupOptions.ProductAttrs
@@ -268,7 +462,8 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
         | LibraryOptions.ResponseGroupOptions.Series
         | LibraryOptions.ResponseGroupOptions.Origin
         | LibraryOptions.ResponseGroupOptions.IsPlayable
-        | LibraryOptions.ResponseGroupOptions.CustomerRights;
+        | LibraryOptions.ResponseGroupOptions.CustomerRights
+        | LibraryOptions.ResponseGroupOptions.ProductPlans;
 
     /// <summary>
     /// A podcast's parent entry is a folder of episodes, not something with audio of
@@ -398,7 +593,10 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
                 new Uri(url),
                 license.Voucher.Key,
                 license.Voucher.Iv,
-                null);
+                null)
+            {
+                Chapters = FlattenChapters(license.ContentMetadata?.ChapterInfo?.Chapters),
+            };
         }
 
         // Legacy AAX workaround (Libation-style): fetch activation bytes once and
@@ -412,6 +610,43 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
             new Uri(aaxUrl),
             null, null,
             activationBytes);
+    }
+
+    /// <summary>
+    /// The licence's chapter tree as a flat list in playing order. A part that has
+    /// chapters of its own ("Part One", then its chapters) keeps any opening stretch
+    /// before its first chapter as a chapter of its own, titled after the part.
+    /// </summary>
+    public static IReadOnlyList<ChapterMark>? FlattenChapters(AudibleApi.Common.Chapter[]? chapters)
+    {
+        if (chapters is not { Length: > 0 })
+            return null;
+
+        var flat = new List<ChapterMark>();
+
+        void Walk(IEnumerable<AudibleApi.Common.Chapter> level, string prefix)
+        {
+            foreach (var chapter in level)
+            {
+                var title = DisplayText.FirstReal($"Chapter {flat.Count + 1}", chapter.Title);
+                var start = TimeSpan.FromMilliseconds(chapter.StartOffsetMs);
+
+                if (chapter.Chapters is { Length: > 0 } children)
+                {
+                    var intro = children[0].StartOffsetMs - chapter.StartOffsetMs;
+                    if (intro > 1000)
+                        flat.Add(new ChapterMark(prefix + title, start, TimeSpan.FromMilliseconds(intro)));
+                    Walk(children, prefix + title + ": ");
+                }
+                else
+                {
+                    flat.Add(new ChapterMark(prefix + title, start, TimeSpan.FromMilliseconds(chapter.LengthMs)));
+                }
+            }
+        }
+
+        Walk(chapters, "");
+        return flat.Count > 0 ? flat : null;
     }
 
     /// <summary>

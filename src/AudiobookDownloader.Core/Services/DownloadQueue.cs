@@ -4,8 +4,8 @@ namespace AudiobookDownloader.Core;
 public sealed record QueueFinishedSummary(int Completed, int Failed, int Cancelled);
 
 /// <summary>
-/// Sequential download queue. Books added here are processed one at a time;
-/// each item moves through Pending → Active → Completed / Failed / Cancelled.
+/// Download queue. Books added here are processed in order, one at a time or up to
+/// four at once (<see cref="Parallelism"/>); each item moves through Pending → Active → Completed / Failed / Cancelled.
 /// Failed or cancelled items can be retried. The UI listens to the Changed
 /// event to keep the queue panel up to date.
 /// </summary>
@@ -46,6 +46,9 @@ public sealed class DownloadQueue
     }
 
     public bool IsRunning => _worker is not null && !_worker.IsCompleted;
+
+    /// <summary>How many books download at the same time; read at the start of each pass.</summary>
+    public Func<int> Parallelism { get; set; } = () => 1;
 
     public QueueItem Enqueue(IBookProvider provider, BookInfo book)
     {
@@ -186,12 +189,30 @@ public sealed class DownloadQueue
                 if (batch.Count == 0)
                     break;
 
-                foreach (var item in batch)
+                var limit = Math.Clamp(Parallelism(), 1, 4);
+                using var gate = new SemaphoreSlim(limit);
+
+                // One at a time unless more were asked for; either way an item that
+                // was removed or cancelled while it waited is left alone.
+                await Task.WhenAll(batch.Select(async item =>
                 {
-                    token.ThrowIfCancellationRequested();
-                    await RunOneAsync(item, token);
-                    processed++;
-                }
+                    await gate.WaitAsync(token);
+                    try
+                    {
+                        token.ThrowIfCancellationRequested();
+                        bool stillWanted;
+                        lock (_lock) stillWanted = _items.Contains(item) && item.Status == QueueStatus.Pending;
+                        if (!stillWanted)
+                            return;
+
+                        await RunOneAsync(item, token);
+                        Interlocked.Increment(ref processed);
+                    }
+                    finally
+                    {
+                        gate.Release();
+                    }
+                }));
             }
         }
         catch (OperationCanceledException)

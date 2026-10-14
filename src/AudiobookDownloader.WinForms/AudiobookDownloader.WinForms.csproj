@@ -20,6 +20,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- A three-second book with two chapters, for the self-test's conversion check. -->
+    <EmbeddedResource Include="SelfTestAssets/tiny.m4b" LogicalName="SelfTest.tiny.m4b" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\AudiobookDownloader.Core\AudiobookDownloader.Core.csproj" />
   </ItemGroup>
 

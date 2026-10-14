@@ -63,6 +63,7 @@ internal sealed class AudibleCountryForm : Form
         ShowInTaskbar = false;
         ClientSize = new Size(560, 230);
         AutoScaleMode = AutoScaleMode.Font;
+        Strings.ApplyDirection(this);
         AccessibleName = Strings.T("Country.Title");
         AccessibleRole = AccessibleRole.Dialog;
 

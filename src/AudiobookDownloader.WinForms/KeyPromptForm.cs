@@ -23,6 +23,7 @@ internal sealed class KeyPromptForm : Form
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(520, 240);
         AutoScaleMode = AutoScaleMode.Font;
+        Strings.ApplyDirection(this);
         AccessibleName = Strings.T("Key.Title");
         AccessibleRole = AccessibleRole.Dialog;
 
