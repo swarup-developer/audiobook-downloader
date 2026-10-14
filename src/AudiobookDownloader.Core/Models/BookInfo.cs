@@ -29,6 +29,18 @@ public sealed record BookInfo(
     /// <summary>Series name and position, e.g. "Harry Potter, Book 1".</summary>
     public string? Series { get; init; }
 
+    /// <summary>The series' name alone, for grouping books by series.</summary>
+    public string? SeriesName { get; init; }
+
+    /// <summary>The book's place in its series (1, 2, 2.5…); 0 when unknown.</summary>
+    public float SeriesPosition { get; init; }
+
+    /// <summary>
+    /// For the Audible store: whether the book is already in the account's library.
+    /// Null for every other source.
+    /// </summary>
+    public bool? InLibrary { get; init; }
+
     /// <summary>When the book was added to the library (Audible), for sorting by date.</summary>
     public DateTimeOffset? DateAdded { get; init; }
 

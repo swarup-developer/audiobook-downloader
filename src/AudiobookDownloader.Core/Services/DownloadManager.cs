@@ -490,6 +490,109 @@ public sealed partial class DownloadManager
         return new DownloadResult(true, result, null);
     }
 
+    // ------------------------------------------------------------------
+    // Backup
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// A OneDrive folder for backups, when OneDrive is set up on this computer: what
+    /// is copied there is uploaded to the cloud by OneDrive itself.
+    /// </summary>
+    public static string? SuggestedBackupFolder()
+    {
+        foreach (var variable in new[] { "OneDrive", "OneDriveConsumer", "OneDriveCommercial" })
+        {
+            var root = Environment.GetEnvironmentVariable(variable);
+            if (!string.IsNullOrWhiteSpace(root) && Directory.Exists(root))
+                return Path.Combine(root, "Audiobooks");
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Copies a finished book (a file, or a folder of chapters) and its cover into the
+    /// backup folder, keeping its place under the download folder. Never fails a
+    /// download: a backup that cannot be made is logged and reported as null.
+    /// </summary>
+    public async Task<string?> BackupAsync(string? finishedPath, CancellationToken ct = default)
+    {
+        if (!_settings.BackupEnabled || string.IsNullOrWhiteSpace(_settings.BackupFolder) || string.IsNullOrWhiteSpace(finishedPath))
+            return null;
+
+        try
+        {
+            var relative = IsInside(finishedPath, _settings.OutputFolder)
+                ? Path.GetRelativePath(_settings.OutputFolder, finishedPath)
+                : Path.GetFileName(finishedPath);
+            var target = Path.Combine(_settings.BackupFolder, relative);
+
+            if (Directory.Exists(finishedPath))
+            {
+                foreach (var file in Directory.EnumerateFiles(finishedPath, "*", SearchOption.AllDirectories))
+                    await CopyIfMissingAsync(file, Path.Combine(target, Path.GetRelativePath(finishedPath, file)), ct);
+            }
+            else
+            {
+                await CopyIfMissingAsync(finishedPath, target, ct);
+                var cover = Path.ChangeExtension(finishedPath, ".jpg");
+                if (File.Exists(cover))
+                    await CopyIfMissingAsync(cover, Path.ChangeExtension(target, ".jpg"), ct);
+            }
+
+            Log.Info($"Backed up to {target}");
+            return target;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Log.Warn($"Could not back up {finishedPath}: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Copies every finished book in the download folder that is not in the backup
+    /// folder yet. Returns how many files were copied.
+    /// </summary>
+    public async Task<int> BackupEverythingAsync(IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(_settings.BackupFolder) || !Directory.Exists(_settings.OutputFolder))
+            return 0;
+
+        var copied = 0;
+        foreach (var file in Directory.EnumerateFiles(_settings.OutputFolder, "*", SearchOption.AllDirectories))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (file.EndsWith(PartExtension, StringComparison.OrdinalIgnoreCase) || IsInside(file, _settings.BackupFolder))
+                continue;
+
+            var target = Path.Combine(_settings.BackupFolder, Path.GetRelativePath(_settings.OutputFolder, file));
+            if (File.Exists(target))
+                continue;
+
+            progress?.Report(Path.GetFileName(file));
+            await CopyIfMissingAsync(file, target, ct);
+            copied++;
+        }
+
+        Log.Info($"Backup: {copied} file(s) copied to {_settings.BackupFolder}.");
+        return copied;
+    }
+
+    private static async Task CopyIfMissingAsync(string source, string target, CancellationToken ct)
+    {
+        if (File.Exists(target))
+            return;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+        // Into a partial file first, so a backup cut short never looks complete.
+        var part = target + PartExtension;
+        await using (var from = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 16, useAsync: true))
+        await using (var to = new FileStream(part, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
+            await from.CopyToAsync(to, ct);
+        File.Move(part, target, overwrite: false);
+    }
+
     private static bool IsInside(string path, string folder)
     {
         try
@@ -740,33 +843,30 @@ public sealed partial class DownloadManager
     /// </summary>
     private static async Task<Mpeg4Lib.ChapterInfo?> ReadChaptersAsync(AAXClean.Mp4File source, CancellationToken ct)
     {
-        var info = source.Chapters;
-        if (info is null || info.Count == 0)
+        // The file's own chapter track, read by this app's reader: the decryption
+        // library's reader gets the times wrong in files whose chapter track keeps
+        // its own time units.
+        if (source.InputStream is FileStream { Name: { } path } && File.Exists(path))
         {
-            try
+            var marks = await Task.Run(() => Mp4Chapters.Read(path), ct);
+            if (marks.Count >= 2)
             {
-                var read = source.GetChapterInfoAsync();
-                read.Start();
-                info = await read.OperationTask.WaitAsync(ct);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                Log.Warn($"The chapter list could not be read: {ex.Message}");
-                return null;
+                var list = new List<ChapterMark>();
+                for (var i = 0; i < marks.Count; i++)
+                {
+                    var end = i + 1 < marks.Count ? marks[i + 1].Start : source.Duration;
+                    if (end > marks[i].Start)
+                        list.Add(new ChapterMark(marks[i].Title, marks[i].Start, end - marks[i].Start));
+                }
+
+                var covered = list.Sum(c => c.Length.TotalSeconds);
+                if (list.Count >= 2 && covered >= source.Duration.TotalSeconds * 0.9)
+                    return ToChapterInfo(list);
             }
         }
 
-        if (info is null || info.Count < 2)
-            return null;
-
-        var covered = info.EndOffset - info.StartOffset;
-        if (source.Duration > TimeSpan.Zero && covered.TotalSeconds < source.Duration.TotalSeconds * 0.9)
-        {
-            Log.Warn($"The chapter list covers {covered:hh\\:mm\\:ss} of a {source.Duration:hh\\:mm\\:ss} book, so it is not used.");
-            return null;
-        }
-
-        return info;
+        Log.Warn("No usable chapter list was found in the file.");
+        return null;
     }
 
     /// <summary>

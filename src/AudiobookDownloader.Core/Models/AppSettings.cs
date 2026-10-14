@@ -11,6 +11,31 @@ public sealed record CachedKeys(string? FileName, string? Key, string? Iv, strin
 /// presents it: application, downloads, Audible account, Project Gutenberg,
 /// language and accessibility.
 /// </summary>
+/// <summary>One Audible account signed in on this computer.</summary>
+public sealed class AudibleAccount
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+
+    /// <summary>What the account is called on screen: its e-mail address once known.</summary>
+    public string Name { get; set; } = "";
+
+    /// <summary>The Audible store it belongs to, e.g. "in".</summary>
+    public string Locale { get; set; } = "us";
+}
+
+/// <summary>A place in a book the listener wants to come back to.</summary>
+public sealed class Bookmark
+{
+    /// <summary>The chapter file it is in, for a book split into files; 0 otherwise.</summary>
+    public int Track { get; set; }
+
+    public double Seconds { get; set; }
+
+    public string Note { get; set; } = "";
+
+    public DateTimeOffset Created { get; set; } = DateTimeOffset.Now;
+}
+
 public sealed class AppSettings
 {
     // ---------------------------------------------------------------------
@@ -105,6 +130,31 @@ public sealed class AppSettings
     /// <summary>Playback speed used by the player, 0.5 to 3.</summary>
     public double PlaybackSpeed { get; set; } = 1.0;
 
+    /// <summary>Say the chapter's name when the player reaches a new one.</summary>
+    public bool AnnounceChapters { get; set; } = true;
+
+    /// <summary>Jump over long silences while playing.</summary>
+    public bool SkipSilence { get; set; } = false;
+
+    /// <summary>Bookmarks per book (file or chapter folder), in the order they were made.</summary>
+    public Dictionary<string, List<Bookmark>> Bookmarks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Seconds listened per day ("2026-10-14"), for the listening statistics.</summary>
+    public Dictionary<string, double> ListeningLog { get; set; } = [];
+
+    /// <summary>Books played to the end, with the day they were finished.</summary>
+    public Dictionary<string, string> FinishedBooks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    // ---------------------------------------------------------------------
+    // Backup
+    // ---------------------------------------------------------------------
+
+    /// <summary>Copy every finished book into <see cref="BackupFolder"/> as well.</summary>
+    public bool BackupEnabled { get; set; } = false;
+
+    /// <summary>Where finished books are copied, e.g. a OneDrive folder that syncs to the cloud.</summary>
+    public string BackupFolder { get; set; } = "";
+
     // ---------------------------------------------------------------------
     // Audible account
     // ---------------------------------------------------------------------
@@ -140,6 +190,12 @@ public sealed class AppSettings
 
     /// <summary>When the library was last checked for new books (UTC).</summary>
     public DateTimeOffset? AudibleLastSync { get; set; }
+
+    /// <summary>Every Audible account signed in on this computer.</summary>
+    public List<AudibleAccount> AudibleAccounts { get; set; } = [];
+
+    /// <summary>The account in use; null means the first one.</summary>
+    public string? ActiveAudibleAccountId { get; set; }
 
     // ---------------------------------------------------------------------
     // LibriVox

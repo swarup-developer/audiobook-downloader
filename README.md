@@ -42,6 +42,10 @@ its own.
   by one, so they can be downloaded too.
 - **Signed in once, signed in for good.** A remembered Audible sign-in is used
   automatically when the app starts, with no button to press.
+- **Several Audible accounts.** Sign in to more than one (for example an Indian and
+  an American account) and switch between them in Settings.
+- **The Audible store and your wishlist.** Search everything Audible sells, see your
+  wishlist, add or remove books, and open a book's store page to buy it.
 - **New purchases download themselves** (optional). When the app starts, books you
   bought since the last time are added to the download queue.
 - **DRM removal you choose.** Off by default. Turn it on in Settings and every
@@ -53,19 +57,27 @@ its own.
 - **Book details inside the file.** The description, series, narrator and cover are
   written into the file, so any player shows them. The cover can also be saved as a
   picture next to the book.
-- **Built-in player.** Play, pause, jump 30 seconds, change chapter, change speed
-  from 0.5x to 3x, and pick up where you stopped last time. LibriVox zip files are
-  unzipped for you.
+- **Built-in player.** Play, pause, jump 30 seconds, move between chapters (inside
+  one M4B too), change speed from 0.5x to 3x, and pick up where you stopped last time.
+  Each new chapter is named as it starts. LibriVox zip files are unzipped for you.
+- **Sleep timer, bookmarks and skipping silences.** Stop after 5 to 90 minutes or at
+  the end of the chapter; mark places with a note and jump back to them; jump over
+  long pauses in the narration.
+- **Listening statistics.** Time listened today, this week and this month, your
+  streak of days, and the books you have finished.
 - **Search that works the way you expect.** Every word you type has to match, so
   "harry stone" finds "Harry Potter and the Philosopher's Stone". Previous searches
   are remembered for each source.
 - **Filter by language** on Audible, LibriVox and Project Gutenberg.
-- **Sort the list** by title, author, length or date added, and hide the books you
-  already have.
+- **Sort the list** by title, author, length, date added or series (each series
+  together, in reading order), and hide the books you already have. Book details
+  name the next book in the series.
 - **Already-downloaded books are marked**, and the app asks before downloading one
   again.
 - **Faster, gentler downloads.** Download up to four books at once, and set a speed
   limit if you share your connection.
+- **Automatic backup.** Every finished book can be copied to a second folder as well.
+  Choose a folder inside OneDrive and it is uploaded to the cloud by OneDrive.
 - **Nothing gets lost.** A download never overwrites an existing file. An interrupted
   transfer resumes where it stopped, a dropped connection is retried automatically,
   and the queue survives closing the app.
@@ -91,7 +103,9 @@ its own.
   missing, the app tells you so.
 
 Windows SmartScreen may warn you the first time you run the file, because it is not
-signed with a code-signing certificate. Choose "More info", then "Run anyway".
+yet signed with a code-signing certificate. Choose "More info", then "Run anyway".
+(The release workflow signs every release automatically as soon as a certificate is
+added to the repository; see [Making a release](#making-a-release).)
 
 ## Getting started
 
@@ -133,6 +147,7 @@ the same button, which now reads **Sign out of Audible**.
 | Source | What you get | Account | Format |
 |--------|--------------|---------|--------|
 | Audible (your library) | Books and podcast episodes you own | Amazon account | `.aaxc` as downloaded, or DRM-free `.m4b` / `.mp3` when DRM removal is on |
+| Audible store | Search the whole store; an empty search shows your wishlist | Amazon account | Books you own download as above; others open in the store |
 | LibriVox | Over 20,000 free public-domain audiobooks read by volunteers | None | `.zip` of MP3 chapters |
 | Internet Archive | Free audio collections, most popular first | None | `.zip` of the item's files |
 | Project Gutenberg | Over 70,000 free public-domain books | None | EPUB, HTML, text or MP3 |
@@ -146,6 +161,10 @@ it for a week, so later searches are instant.
 Select a downloaded book and press **Ctrl+P** (or Application, Play selected book).
 A finished row of the download queue can be played the same way.
 
+A chapter is either a file in a folder of chapter files or a chapter inside a single
+M4B; the player moves between them the same way and says each chapter's name when it
+starts (this can be turned off in Settings, Accessibility).
+
 | Keys in the player | What they do |
 |--------------------|--------------|
 | Space on the position slider, or the Play/Pause media key | Play or pause |
@@ -153,11 +172,21 @@ A finished row of the download queue can be played the same way.
 | Ctrl+Left, Ctrl+Right | Jump back or forward 30 seconds |
 | Ctrl+Shift+Left, Ctrl+Shift+Right | Previous or next chapter file |
 | Ctrl+Up, Ctrl+Down | Faster or slower |
-| Ctrl+T | Say the current time |
+| Ctrl+T | Say the current time and chapter |
+| Ctrl+B | Add a bookmark here, with an optional note |
+| Ctrl+Shift+B | Bookmarks: Enter goes to one, Delete removes it |
 | Escape | Close the player; the position is remembered |
+
+The **sleep timer** (Alt+E) stops playback after 5 to 90 minutes, or at the end of
+the chapter. **Skip long silences** (Alt+L) finds the pauses longer than about a
+second in an M4B or M4A book and jumps over them, keeping a short pause so speech
+never sounds cut off.
 
 A LibriVox zip is unzipped into a folder next to it the first time you play it. An
 e-book opens in the program Windows uses for it.
+
+View, **Listening statistics** (Ctrl+Shift+T) shows the time listened today, in the
+last 7 and 30 days and in total, your streak of days, and the books finished.
 
 ## Removing DRM
 
@@ -202,7 +231,9 @@ Press F1 at any time for the full list in your own language.
 | Ctrl+O | Open the download folder |
 | Ctrl+E | Export the book list to a CSV file |
 | Ctrl+K | How to get decryption keys for AAX and AAXC files |
-| Ctrl+1, Ctrl+2, Ctrl+3, Ctrl+4 | Sort by title, author, length, date added |
+| Ctrl+1, Ctrl+2, Ctrl+3, Ctrl+4, Ctrl+5 | Sort by title, author, length, date added, series |
+| Ctrl+Shift+T | Listening statistics |
+| Ctrl+Shift+S | Open the selected Audible book in the Audible store |
 | Ctrl+H | Hide or show books already downloaded |
 | Ctrl+Q or Alt+F4 | Quit |
 | Alt+P | Go to the provider list |
@@ -222,8 +253,9 @@ Press F1 at any time for the full list in your own language.
 | Ctrl+L | Show or hide the activity log |
 | Alt+L | Go to the activity log |
 
-The download queue also has a context menu (Applications key or Shift+F10) with
-Retry, Remove and Clear finished.
+The book list has a context menu (Applications key or Shift+F10) with Play, Book
+details, Open in the Audible store, Add to wishlist and Remove from wishlist. The
+download queue has one with Retry, Remove and Clear finished.
 
 ## Settings
 
@@ -234,15 +266,15 @@ Open Settings with Ctrl+, and move between its sections with Ctrl+Tab.
   for updates.
 - **Downloads:** DRM removal, deleting the encrypted original, M4B or MP3, one file
   per chapter, writing the book's details into the file, saving the cover picture,
-  author folders, asking before downloading a book twice, downloads at the same time
-  (1 to 4) and a speed limit.
-- **Audible account:** sign in, sign out, country, remembering the sign-in, loading
-  the library after signing in, podcast episodes, and downloading new purchases
-  automatically.
+  author folders, asking before downloading a book twice, backup folder, downloads at
+  the same time (1 to 4) and a speed limit.
+- **Audible account:** the account in use and adding another, sign in, sign out,
+  country, remembering the sign-in, loading the library after signing in, podcast
+  episodes, and downloading new purchases automatically.
 - **Project Gutenberg:** default language and preferred format.
 - **Language:** the language of the app itself.
-- **Accessibility:** which status changes and progress milestones are announced, and
-  whether the activity log stays visible.
+- **Accessibility:** which status changes, progress milestones and chapter names are
+  announced, and whether the activity log stays visible.
 
 ## Interface languages
 
@@ -273,8 +305,10 @@ in a bug report.
   about you. It can be turned off in Settings, General.
 - The app has no analytics and sends nothing anywhere else except to the book sources
   you use.
-- Settings, the download queue, playback positions and a log file are kept in
-  `%AppData%\AudiobookDownloader`.
+- Adding or removing a wishlist book changes your wishlist on Audible, as it would in
+  the Audible app. Nothing else is ever changed on your account.
+- Settings, the download queue, playback positions, bookmarks, listening statistics
+  and a log file are kept in `%AppData%\AudiobookDownloader`.
 
 ## Troubleshooting
 
@@ -336,7 +370,8 @@ checks the following and exits with an error if anything is wrong:
 - the Audible sign-in redirect for every store;
 - the download engine: no overwrites, resuming, cancelling, the queue surviving a
   restart, and recognising books that are already downloaded;
-- the player: it really plays a file, remembers where it stopped and resumes there;
+- the player: it really plays a file, remembers where it stopped and resumes there,
+  records listening time, reads the chapters inside an M4B, and finds long silences;
 - the LibriVox catalogue reader.
 
 Add `--self-test-live` to also read the real LibriVox catalogue over the internet.
@@ -357,9 +392,15 @@ request is built and self-tested by the **Build** workflow. To publish a version
 
    or on GitHub under Actions, Release, Run workflow, typing the version.
 
-The workflow builds the single-file `AudiobookDownload.exe`, runs the self-test on
-that exact file in an empty folder, and only then publishes the release with the exe
-attached. If the self-test finds a problem, nothing is released.
+The workflow builds the single-file `AudiobookDownload.exe`, signs it when a
+certificate is configured, runs the self-test on that exact file in an empty folder,
+and only then publishes the release with the exe attached. If the self-test finds a
+problem, nothing is released.
+
+**Code signing.** Add two repository secrets, `SIGNING_CERT_BASE64` (the `.pfx`
+certificate, base64-encoded) and `SIGNING_CERT_PASSWORD`, and every release is signed
+and time-stamped. Open-source projects can get a free certificate through
+[SignPath Foundation](https://signpath.org).
 
 ### Project layout
 

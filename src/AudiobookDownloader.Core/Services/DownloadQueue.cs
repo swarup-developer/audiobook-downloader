@@ -276,6 +276,10 @@ public sealed class DownloadQueue
                 item.OutputFile = result.OutputFile;
                 item.Message = $"Saved {result.OutputFile}";
                 Log.Info($"Queue: downloaded '{item.Book.Title}' to {result.OutputFile}");
+
+                // A copy to the backup folder (a OneDrive folder, say) when that is on.
+                if (await _downloader.BackupAsync(result.OutputFile, token) is { } copy)
+                    item.Message = $"Saved {result.OutputFile} (backed up)";
             }
             else if (result.Cancelled)
             {

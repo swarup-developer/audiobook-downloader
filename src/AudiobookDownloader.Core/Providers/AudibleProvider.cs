@@ -31,7 +31,19 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "AudiobookDownloader");
 
-    private static string IdentityFile => Path.Combine(IdentityFolder, "audible-identity.json");
+    /// <summary>
+    /// The saved sign-in of the account in use. The first account keeps the original
+    /// file name, so a sign-in saved by an earlier version is still found; every
+    /// further account has a file of its own.
+    /// </summary>
+    private string IdentityFile => IdentityFileFor(ActiveAccount?.Id);
+
+    private static string IdentityFileFor(string? accountId) =>
+        string.IsNullOrEmpty(accountId) || accountId == DefaultAccountId
+            ? Path.Combine(IdentityFolder, "audible-identity.json")
+            : Path.Combine(IdentityFolder, $"audible-identity-{accountId}.json");
+
+    private const string DefaultAccountId = "default";
 
     private Api? _api;
     private List<Item>? _library;
@@ -114,8 +126,10 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
             // library's own fallback keeps it visible, so "open the page only when
             // it is actually necessary" is something the app states rather than
             // something it hopes for.
+            EnsureAccount();
+
             var api = File.Exists(IdentityFile)
-                ? await TryReuseSavedSignInAsync(locale)
+                ? await TryReuseSavedSignInAsync(locale, IdentityFile)
                 : null;
 
             if (api is null)
@@ -126,6 +140,7 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
 
             // The session goes live here — the last moment at which anything can
             // fail — so every screen is told about it once, and told the truth.
+            await NameAccountAsync(api);
             SetSession(api);
             Log.Info($"Audible: signed in ({_settings.AudibleLocale}).");
         }
@@ -168,11 +183,11 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
     /// works. A failure is deliberately not raised: it means only that the account
     /// holder has to sign in, which the caller does next.
     /// </summary>
-    private static async Task<Api?> TryReuseSavedSignInAsync(Locale locale)
+    private static async Task<Api?> TryReuseSavedSignInAsync(Locale locale, string identityFile)
     {
         try
         {
-            var api = await EzApiCreator.GetApiAsync(locale, IdentityFile);
+            var api = await EzApiCreator.GetApiAsync(locale, identityFile);
             Log.Info("Audible: reused the saved sign-in, so no sign-in page was opened.");
             return api;
         }
@@ -201,7 +216,135 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
             Log.Warn($"Audible: could not delete the stored sign-in: {ex.Message}");
         }
 
+        // Signing out forgets this account; another one signed in on this computer
+        // becomes the account in use.
+        if (ActiveAccount is { } gone)
+        {
+            _settings.AudibleAccounts.Remove(gone);
+            _settings.ActiveAudibleAccountId = _settings.AudibleAccounts.FirstOrDefault()?.Id;
+            if (ActiveAccount is { } next)
+                _settings.AudibleLocale = next.Locale;
+            _settings.Save();
+        }
+
         Log.Info("Audible: signed out.");
+    }
+
+    // ------------------------------------------------------------------
+    // Several accounts
+    // ------------------------------------------------------------------
+
+    /// <summary>The account in use, or null when none has signed in yet.</summary>
+    public AudibleAccount? ActiveAccount =>
+        _settings.AudibleAccounts.FirstOrDefault(a => a.Id == _settings.ActiveAudibleAccountId)
+        ?? _settings.AudibleAccounts.FirstOrDefault();
+
+    /// <summary>Every account signed in on this computer.</summary>
+    public IReadOnlyList<AudibleAccount> Accounts
+    {
+        get
+        {
+            EnsureAccount(createIfNone: false);
+            return _settings.AudibleAccounts;
+        }
+    }
+
+    /// <summary>
+    /// Makes sure the account list describes what is on disk: a sign-in saved by an
+    /// earlier version, which knew only one account, becomes the first account.
+    /// </summary>
+    private void EnsureAccount(bool createIfNone = true)
+    {
+        if (_settings.AudibleAccounts.Count > 0)
+            return;
+
+        if (!createIfNone && !File.Exists(IdentityFileFor(DefaultAccountId)))
+            return;
+
+        _settings.AudibleAccounts.Add(new AudibleAccount
+        {
+            Id = DefaultAccountId,
+            Name = "",
+            Locale = _settings.AudibleLocale ?? "us",
+        });
+        _settings.ActiveAudibleAccountId = DefaultAccountId;
+    }
+
+    /// <summary>Names the account after its e-mail address, which is what people recognise.</summary>
+    private async Task NameAccountAsync(Api api)
+    {
+        EnsureAccount();
+        var account = ActiveAccount!;
+        account.Locale = _settings.AudibleLocale ?? account.Locale;
+
+        if (!string.IsNullOrWhiteSpace(account.Name))
+            return;
+
+        try
+        {
+            account.Name = (await api.GetEmailAsync())?.Trim() ?? "";
+        }
+        catch (Exception ex)
+        {
+            Log.Info($"Audible: the account's e-mail address could not be read ({ex.Message}).");
+        }
+
+        if (string.IsNullOrWhiteSpace(account.Name))
+            account.Name = $"Account {_settings.AudibleAccounts.IndexOf(account) + 1}";
+        _settings.Save();
+    }
+
+    /// <summary>
+    /// Starts adding another account: it becomes the account in use, with no sign-in
+    /// yet, so the next <see cref="ConnectAsync"/> opens Amazon's page for it. The
+    /// account that was in use keeps its saved sign-in.
+    /// </summary>
+    public void BeginNewAccount()
+    {
+        EnsureAccount(createIfNone: false);
+        SetSession(null);
+
+        var account = new AudibleAccount { Locale = _settings.AudibleLocale ?? "us" };
+        _settings.AudibleAccounts.Add(account);
+        _settings.ActiveAudibleAccountId = account.Id;
+        _settings.AudibleCountryChosen = false;
+    }
+
+    /// <summary>Takes back an account that was never signed in to, returning to the previous one.</summary>
+    public async Task AbandonNewAccountAsync()
+    {
+        if (ActiveAccount is { } added && !File.Exists(IdentityFile) && _api is null)
+        {
+            _settings.AudibleAccounts.Remove(added);
+            _settings.ActiveAudibleAccountId = _settings.AudibleAccounts.FirstOrDefault()?.Id;
+            if (ActiveAccount is { } back)
+            {
+                _settings.AudibleLocale = back.Locale;
+                _settings.AudibleCountryChosen = true;
+            }
+            _settings.Save();
+            await TryResumeSessionAsync();
+        }
+    }
+
+    /// <summary>Changes to another account signed in on this computer, using its saved sign-in.</summary>
+    public async Task<bool> SwitchAccountAsync(string accountId)
+    {
+        var account = _settings.AudibleAccounts.FirstOrDefault(a => a.Id == accountId);
+        if (account is null)
+            return false;
+
+        if (account == ActiveAccount && _api is not null)
+            return true;
+
+        SetSession(null);
+        _settings.ActiveAudibleAccountId = account.Id;
+        _settings.AudibleLocale = account.Locale;
+        _settings.AudibleCountryChosen = true;
+        _settings.Save();
+
+        Log.Info($"Audible: switching to {account.Name} ({account.Locale}).");
+        return await TryResumeSessionAsync();
     }
 
     /// <summary>Sign out and also forget the saved sign-in, used by Settings.</summary>
@@ -288,6 +431,8 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
                 ? StripHtml(d)
                 : null,
             Series = DescribeSeries(i.Series),
+            SeriesName = FirstSeries(i.Series) is { } series ? DisplayText.FirstReal("", series.SeriesName, series.Title) : null,
+            SeriesPosition = FirstSeries(i.Series) is { } position ? SeriesNumber(position) : 0,
             DateAdded = i.PurchaseDate != default ? i.PurchaseDate
                 : i.DateAdded != default ? new DateTimeOffset(DateTime.SpecifyKind(i.DateAdded, DateTimeKind.Utc))
                 : null,
@@ -380,6 +525,7 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
         if (_api is not null)
             return true;
 
+        EnsureAccount(createIfNone: false);
         if (!_settings.AudibleRememberSignIn || !File.Exists(IdentityFile))
             return false;
 
@@ -387,10 +533,11 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
         if (locale == Locale.Empty)
             locale = Localization.Get("us");
 
-        var api = await TryReuseSavedSignInAsync(locale);
+        var api = await TryReuseSavedSignInAsync(locale, IdentityFile);
         if (api is null)
             return false;
 
+        await NameAccountAsync(api);
         SetSession(api);
         Log.Info($"Audible: signed in again with the saved sign-in ({_settings.AudibleLocale}).");
         return true;
@@ -425,6 +572,111 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
         return all.Where(b => b.DateAdded is { } added && added > since && !alreadyDownloaded(b)).ToList();
     }
 
+    // ------------------------------------------------------------------
+    // The Audible store: search, wishlist and store pages
+    // ------------------------------------------------------------------
+
+    private const string StoreResponseGroups =
+        "contributors,media,product_attrs,product_desc,product_extended_attrs,series,customer_rights";
+
+    /// <summary>Searches the Audible store of the account's country.</summary>
+    public async Task<IReadOnlyList<BookInfo>> SearchStoreAsync(string query, CancellationToken ct = default)
+    {
+        var api = _api ?? throw new NotSignedInException(
+            "Not signed in to Audible. Press the Sign in button next to the provider list first.");
+
+        var owned = await OwnedAsync(ct);
+        var url = "/1.0/catalog/products?num_results=50&products_sort_by=Relevance" +
+                  $"&response_groups={StoreResponseGroups}&keywords={Uri.EscapeDataString(query.Trim())}";
+
+        using var response = await api.AdHocAuthenticatedGetAsync(url);
+        response.EnsureSuccessStatusCode();
+        var json = Newtonsoft.Json.Linq.JObject.Parse(await response.Content.ReadAsStringAsync(ct));
+        var items = AudibleApi.Common.ProductsDtoV10.FromJson(json)?.Products ?? [];
+
+        Log.Info($"Audible store: {items.Length} result(s) for \"{query.Trim()}\".");
+        return items
+            .Where(i => !string.IsNullOrWhiteSpace(i.Asin))
+            .Select(i => ToBookInfo(i) with { ProviderId = AudibleStoreProvider.ProviderId, InLibrary = owned.Contains(i.Asin!) })
+            .ToList();
+    }
+
+    /// <summary>The account's wishlist, newest first.</summary>
+    public async Task<IReadOnlyList<BookInfo>> GetWishlistAsync(CancellationToken ct = default)
+    {
+        var api = _api ?? throw new NotSignedInException(
+            "Not signed in to Audible. Press the Sign in button next to the provider list first.");
+
+        var owned = await OwnedAsync(ct);
+        var products = await api.GetWishListProductsAsync(
+            new WishListOptions
+            {
+                ResponseGroups = WishListOptions.ResponseGroupOptions.ProductAttrs
+                    | WishListOptions.ResponseGroupOptions.Contributors
+                    | WishListOptions.ResponseGroupOptions.Media
+                    | WishListOptions.ResponseGroupOptions.ProductDesc,
+                NumberOfResultPerPage = 50,
+            });
+
+        Log.Info($"Audible: {products.Count} book(s) on the wishlist.");
+        return products
+            .Where(p => !string.IsNullOrWhiteSpace(p.Asin))
+            .Select(p =>
+            {
+                var minutes = (int?)p.SourceJson?["runtime_length_min"] ?? 0;
+                var title = DisplayText.FirstReal(p.Asin!, p.Title);
+                if (!DisplayText.IsMissing(p.Subtitle))
+                    title += ": " + p.Subtitle!.Trim();
+                string Names(AudibleApi.Common.Author[]? people, string none) =>
+                    string.Join(", ", (people ?? []).Select(a => a?.Name).Where(n => !DisplayText.IsMissing(n))) is { Length: > 0 } joined
+                        ? joined : none;
+
+                return new BookInfo(AudibleStoreProvider.ProviderId, p.Asin!, title,
+                    Names(p.Authors, BookInfo.UnknownAuthor), Names(p.Narrators, ""),
+                    minutes, p.ProductImages?.The500?.ToString(), null, $"{minutes / 60} hr {minutes % 60} min")
+                {
+                    Language = DisplayText.IsMissing(p.Language) ? null : Capitalise(p.Language!.Trim()),
+                    Description = DisplayText.IsMissing(p.MerchandisingSummary) ? null : StripHtml(p.MerchandisingSummary!),
+                    DateAdded = p.AddedTimestamp == default ? null : p.AddedTimestamp,
+                    InLibrary = owned.Contains(p.Asin!),
+                };
+            })
+            .OrderByDescending(b => b.DateAdded)
+            .ToList();
+    }
+
+    public async Task AddToWishlistAsync(string asin)
+    {
+        var api = _api ?? throw new NotSignedInException("Not signed in to Audible.");
+        await api.AddToWishListAsync(asin);
+        Log.Info($"Audible: {asin} added to the wishlist.");
+    }
+
+    public async Task RemoveFromWishlistAsync(string asin)
+    {
+        var api = _api ?? throw new NotSignedInException("Not signed in to Audible.");
+        await api.DeleteFromWishListAsync(asin);
+        Log.Info($"Audible: {asin} removed from the wishlist.");
+    }
+
+    /// <summary>The book's page in the account's Audible store, where it can be bought.</summary>
+    public string StorePageUrl(string asin)
+    {
+        var locale = Localization.Get(_settings.AudibleLocale ?? "us");
+        var domain = locale == Locale.Empty || string.IsNullOrWhiteSpace(locale.TopDomain) ? "com" : locale.TopDomain;
+        return $"https://www.audible.{domain}/pd/{Uri.EscapeDataString(asin)}";
+    }
+
+    /// <summary>Whether a book is in the library (loading the library if need be).</summary>
+    public async Task<bool> OwnsAsync(string asin, CancellationToken ct = default) =>
+        (await OwnedAsync(ct)).Contains(asin);
+
+    private async Task<HashSet<string>> OwnedAsync(CancellationToken ct)
+    {
+        await GetBooksAsync("", ct);
+        return new HashSet<string>((_library ?? []).Select(i => i.Asin ?? ""), StringComparer.OrdinalIgnoreCase);
+    }
+
     private static string? CoverUrl(Item i)
     {
         var url = i.ProductImages?.The1215?.ToString() ?? i.ProductImages?.The500?.ToString();
@@ -432,6 +684,21 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
             return url;
 
         return DisplayText.IsMissing(i.PictureLarge) ? null : i.PictureLarge;
+    }
+
+    private static AudibleApi.Common.Series? FirstSeries(AudibleApi.Common.Series[]? series) =>
+        series?.FirstOrDefault(s => !DisplayText.IsMissing(s?.SeriesName ?? s?.Title));
+
+    /// <summary>"3", "2.5" or "Book 4" as a number to sort by; 0 when there is none.</summary>
+    private static float SeriesNumber(AudibleApi.Common.Series series)
+    {
+        if (series.Index > 0)
+            return series.Index;
+
+        var digits = new string((series.Sequence ?? "").SkipWhile(c => !char.IsDigit(c))
+            .TakeWhile(c => char.IsDigit(c) || c == '.').ToArray());
+        return float.TryParse(digits, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : 0;
     }
 
     private static string? DescribeSeries(AudibleApi.Common.Series[]? series)

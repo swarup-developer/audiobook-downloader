@@ -48,6 +48,9 @@ internal enum ShortcutAction
     SortByLength,
     SortByAdded,
     HideDownloaded,
+    SortBySeries,
+    ListeningStats,
+    StorePage,
 
     // Answered somewhere the main window does not reach.
     MoveFocus,
@@ -106,6 +109,8 @@ internal static class Shortcuts
         new(ShortcutAction.SortByLength, Keys.Control | Keys.D3, "Shortcut.SortLength", ShortcutOwner.Menu),
         new(ShortcutAction.SortByAdded, Keys.Control | Keys.D4, "Shortcut.SortAdded", ShortcutOwner.Menu),
         new(ShortcutAction.HideDownloaded, Keys.Control | Keys.H, "Shortcut.HideDownloaded", ShortcutOwner.Menu),
+        new(ShortcutAction.SortBySeries, Keys.Control | Keys.D5, "Shortcut.SortSeries", ShortcutOwner.Menu),
+        new(ShortcutAction.ListeningStats, Keys.Control | Keys.Shift | Keys.T, "Shortcut.Stats", ShortcutOwner.Menu),
         new(ShortcutAction.Quit, Keys.Alt | Keys.F4, "Shortcut.Quit", ShortcutOwner.Menu),
 
         // Answered by the main window's own key handling.
@@ -119,6 +124,7 @@ internal static class Shortcuts
         new(ShortcutAction.BookLanguage, Keys.Alt | Keys.U, "Shortcut.BookLanguage", ShortcutOwner.Window),
         new(ShortcutAction.BookDetails, Keys.Control | Keys.I, "Shortcut.BookDetails", ShortcutOwner.Window),
         new(ShortcutAction.ShowBookFile, Keys.Control | Keys.Shift | Keys.O, "Shortcut.ShowFile", ShortcutOwner.Window),
+        new(ShortcutAction.StorePage, Keys.Control | Keys.Shift | Keys.S, "Shortcut.StorePage", ShortcutOwner.Window),
 
         // Answered by a dialog, by Windows, or by a list: documented, never dispatched
         // here. The list entries are the ones that are a gesture rather than a key, so

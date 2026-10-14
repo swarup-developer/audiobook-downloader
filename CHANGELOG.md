@@ -28,6 +28,27 @@ YouTube and Spotify sources were removed.
 
 ### Added
 
+- **The Audible store as a source:** search everything Audible sells in your country,
+  see your wishlist (an empty search), add and remove wishlist books, and open a
+  book's store page to buy it (Ctrl+Shift+S, or the book list's context menu). Books
+  already in your library are marked and download as usual.
+- **Several Audible accounts,** switched in Settings, each with its own saved sign-in
+  and country. The first account is the sign-in saved by earlier versions.
+- **Player: chapters inside one M4B** can be moved between like chapter files, and
+  each chapter is named as it starts (can be turned off in Settings, Accessibility).
+- **Player: sleep timer** (5 to 90 minutes, or the end of the chapter).
+- **Player: bookmarks with notes** (Ctrl+B to add, Ctrl+Shift+B to list, go to and
+  delete).
+- **Player: skip long silences** in M4B and M4A books.
+- **Listening statistics** (Ctrl+Shift+T): today, the last 7 and 30 days, in total, the
+  streak of days, and books finished.
+- **Sort by series** (Ctrl+5), in reading order; book details name the next book in
+  the series.
+- **Backup folder:** every finished book is copied there too, and Application, Back
+  up downloaded books now copies anything missing. A OneDrive folder is suggested
+  when OneDrive is set up, so backups reach the cloud.
+- **Code signing in the release workflow,** used as soon as a certificate is added as
+  a repository secret.
 - **Built-in player (Ctrl+P).** Play, pause, jump 30 seconds, change chapter, change
   speed from 0.5x to 3x, and resume where you stopped. Plays M4B, M4A and MP3, chapter
   folders as one book, and unzips LibriVox zips the first time. Fully keyboard driven.
@@ -197,6 +218,11 @@ YouTube and Spotify sources were removed.
 - A permanent error such as 403 or 404 is reported at once instead of being retried
   for twenty seconds.
 - The Audible library was fetched twice at start-up; it is now one request.
+- Chapters are read with the app's own MP4 chapter reader. The decryption library's
+  reader found one chapter, or chapters a fraction of a second long, in files whose
+  chapter track keeps its own time units, which broke splitting such files by chapter.
+- An automatic sign-in while another source was chosen put the Audible sign-in button
+  next to that source.
 - A failed download can be removed from the queue (Ctrl+Delete), instead of staying
   there for good.
 - **Audible books show their titles and authors.** The library was requested with too

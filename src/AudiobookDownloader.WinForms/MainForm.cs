@@ -37,6 +37,16 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     /// every key press. The list is loaded only once the selection has settled, so
     /// passing an entry on the way to another does not start a search for it.
     /// </summary>
+    private ToolStripMenuItem _menuSortSeries = null!;
+    private ToolStripMenuItem _menuStats = null!;
+    private ToolStripMenuItem _menuBackupNow = null!;
+    private ContextMenuStrip _bookMenu = null!;
+    private ToolStripMenuItem _bookMenuPlay = null!;
+    private ToolStripMenuItem _bookMenuDetails = null!;
+    private ToolStripMenuItem _bookMenuStore = null!;
+    private ToolStripMenuItem _bookMenuAddWish = null!;
+    private ToolStripMenuItem _bookMenuRemoveWish = null!;
+
     private readonly System.Windows.Forms.Timer _providerSettle = new() { Interval = 450 };
     private readonly System.Windows.Forms.Timer _languageSettle = new() { Interval = 450 };
 
@@ -197,14 +207,58 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     {
         ProviderRegistry.Reset();
         ProviderRegistry.Register(_audible);
+        ProviderRegistry.Register(new AudibleStoreProvider(_audible));
         ProviderRegistry.Register(new LibriVoxProvider(_settings));
         ProviderRegistry.Register(new InternetArchiveProvider());
         ProviderRegistry.Register(new GutenbergProvider(_settings));
         ProviderRegistry.Register(new LocalFilesProvider(_settings, this));
     }
 
+    /// <summary>Audible itself, or its store: both need the Audible sign-in.</summary>
+    private static bool IsAudible(IBookProvider? provider) => provider is AudibleProvider or AudibleStoreProvider;
+
+    /// <summary>
+    /// Menu entries added in code: sort by series, listening statistics and "back up
+    /// now", plus the book list's own context menu (Applications key or Shift+F10).
+    /// </summary>
+    private void BuildExtraMenus()
+    {
+        _menuSortSeries = new ToolStripMenuItem { ShortcutKeys = Keys.Control | Keys.D5, Name = "menuSortSeries" };
+        _menuSortSeries.Click += (_, _) => SetSortOrder("series", "Main.SortNameSeries");
+        menuView.DropDownItems.Insert(menuView.DropDownItems.IndexOf(menuSortAdded) + 1, _menuSortSeries);
+
+        _menuStats = new ToolStripMenuItem { ShortcutKeys = Keys.Control | Keys.Shift | Keys.T, Name = "menuStats" };
+        _menuStats.Click += (_, _) => ShowListeningStats();
+        menuView.DropDownItems.Add(new ToolStripSeparator());
+        menuView.DropDownItems.Add(_menuStats);
+
+        _menuBackupNow = new ToolStripMenuItem { Name = "menuBackupNow" };
+        _menuBackupNow.Click += (_, _) => RunSafely(BackupNowAsync, "backing up");
+        menuApplication.DropDownItems.Insert(menuApplication.DropDownItems.IndexOf(menuAppSeparator), _menuBackupNow);
+
+        _bookMenu = new ContextMenuStrip { Name = "bookMenu" };
+        _bookMenuPlay = new ToolStripMenuItem { ShortcutKeyDisplayString = "Ctrl + P" };
+        _bookMenuPlay.Click += (_, _) => PlaySelectedBook();
+        _bookMenuDetails = new ToolStripMenuItem { ShortcutKeyDisplayString = "Ctrl + I" };
+        _bookMenuDetails.Click += (_, _) => ShowBookDetails();
+        _bookMenuStore = new ToolStripMenuItem { ShortcutKeyDisplayString = "Ctrl + Shift + S" };
+        _bookMenuStore.Click += (_, _) => OpenStorePage();
+        _bookMenuAddWish = new ToolStripMenuItem();
+        _bookMenuAddWish.Click += (_, _) => RunSafely(() => ChangeWishlistAsync(add: true), "changing the wishlist");
+        _bookMenuRemoveWish = new ToolStripMenuItem();
+        _bookMenuRemoveWish.Click += (_, _) => RunSafely(() => ChangeWishlistAsync(add: false), "changing the wishlist");
+        _bookMenu.Items.AddRange([_bookMenuPlay, _bookMenuDetails, new ToolStripSeparator(), _bookMenuStore, _bookMenuAddWish, _bookMenuRemoveWish]);
+        _bookMenu.Opening += (_, _) =>
+        {
+            var audible = IsAudible(providerCombo.SelectedItem as IBookProvider);
+            _bookMenuStore.Visible = _bookMenuAddWish.Visible = _bookMenuRemoveWish.Visible = audible;
+        };
+        libraryList.ContextMenuStrip = _bookMenu;
+    }
+
     private void WireMenus()
     {
+        BuildExtraMenus();
         menuSettings.Click += (_, _) => OpenSettings(SettingsForm.SectionGeneral);
         menuExit.Click += (_, _) => Close();
         menuAbout.Click += (_, _) => ShowAbout();
@@ -298,6 +352,17 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             item.Text = Strings.T(key);
             item.AccessibleName = Strings.Plain(Strings.T(key)).TrimEnd('…', '.').Trim();
         }
+        foreach (var (item, key) in new (ToolStripMenuItem, string)[]
+        {
+            (_menuSortSeries, "Menu.SortSeries"), (_menuStats, "Menu.Stats"), (_menuBackupNow, "Menu.BackupNow"),
+            (_bookMenuPlay, "Menu.Play"), (_bookMenuDetails, "BookMenu.Details"), (_bookMenuStore, "BookMenu.Store"),
+            (_bookMenuAddWish, "BookMenu.AddWish"), (_bookMenuRemoveWish, "BookMenu.RemoveWish"),
+        })
+        {
+            item.Text = Strings.T(key);
+            item.AccessibleName = Strings.Plain(Strings.T(key)).TrimEnd('…', '.').Trim();
+        }
+        _bookMenu.AccessibleName = Strings.T("BookMenu.Name");
         UpdateViewMenu();
         Strings.ApplyDirection(this);
         menuExport.AccessibleName = Strings.Plain(Strings.T("Menu.Export")).TrimEnd('…', '.');
@@ -438,7 +503,9 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     /// </summary>
     private void UpdateLibraryLabel(IBookProvider? provider)
     {
-        var key = provider is AudibleProvider ? "Main.BooksAudible" : "Main.Books";
+        var key = provider is AudibleProvider ? "Main.BooksAudible"
+            : provider is AudibleStoreProvider ? "Main.BooksStore"
+            : "Main.Books";
         libraryLabel.Text = Strings.T(key);
         libraryList.AccessibleName = Strings.Plain(Strings.T(key)).TrimEnd(':', ' ');
     }
@@ -452,7 +519,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
 
         // Audible is special: without a live authenticated session there is no
         // library to show, and the app must not invent one.
-        if (provider is AudibleProvider audible && !audible.IsConnected)
+        if (IsAudible(provider) && !_audible.IsConnected)
         {
             _found = [];
             RefreshBookList();
@@ -462,11 +529,17 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             return;
         }
 
+        var drm = provider.HasDrm
+            ? Strings.T(_settings.DrmRemovalEnabled ? "Main.HasDrm" : "Main.DrmKept")
+            : Strings.T("Main.NoDrm");
         SetProviderStatus(provider.RequiresLogin && !provider.IsConnected
             ? Strings.T("Main.NotSignedIn")
-            : provider.HasDrm
-                ? Strings.T(_settings.DrmRemovalEnabled ? "Main.HasDrm" : "Main.DrmKept")
-                : Strings.T("Main.NoDrm"));
+            : IsAudible(provider) && _audible.ActiveAccount is { } account && !string.IsNullOrWhiteSpace(account.Name)
+                ? string.Format(Strings.T("Main.SignedInAs"), account.Name, Countries.Name(account.Locale)) + " " + drm
+                : drm);
+
+        if (provider is AudibleStoreProvider && string.IsNullOrWhiteSpace(searchBox.Text))
+            SetLibraryHint(Strings.T("Store.Hint"));
 
         // "Load my library automatically after signing in" off: wait for an explicit search.
         if (provider is AudibleProvider && !_settings.AudibleLoadLibraryAfterSignIn &&
@@ -554,16 +627,16 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     /// The sign-in / account button. Audible account management lives in Settings,
     /// so this opens the Audible section there instead of connecting directly.
     /// </summary>
-    private void UpdateAccountButton(IBookProvider provider)
+    private void UpdateAccountButton(IBookProvider? provider)
     {
-        if (provider is not AudibleProvider audible)
+        if (!IsAudible(provider))
         {
             accountButton.Visible = false;
             return;
         }
 
         accountButton.Visible = true;
-        var key = audible.IsConnected ? "Main.SignOut" : "Main.SignIn";
+        var key = _audible.IsConnected ? "Main.SignOut" : "Main.SignIn";
         accountButton.Text = Strings.T(key);
         accountButton.AccessibleName = Strings.Plain(Strings.T(key));
     }
@@ -654,7 +727,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         if (providerCombo.SelectedItem is not IBookProvider provider)
             return;
 
-        if (provider is AudibleProvider audible && !audible.IsConnected)
+        if (IsAudible(provider) && !_audible.IsConnected)
         {
             _found = [];
             RefreshBookList();
@@ -742,6 +815,11 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             "author" => books.OrderBy(b => b.Author, byTitle).ThenBy(b => b.Series ?? "", byTitle).ThenBy(b => b.Title, byTitle),
             "length" => books.OrderByDescending(b => b.LengthMinutes).ThenBy(b => b.Title, byTitle),
             "added" => books.OrderByDescending(b => b.DateAdded ?? DateTimeOffset.MinValue).ThenBy(b => b.Title, byTitle),
+            // Each series together, in reading order; books in no series after them.
+            "series" => books.OrderBy(b => string.IsNullOrEmpty(b.SeriesName) ? 1 : 0)
+                .ThenBy(b => b.SeriesName ?? "", byTitle)
+                .ThenBy(b => b.SeriesPosition)
+                .ThenBy(b => b.Title, byTitle),
             _ => books.OrderBy(b => b.Title, byTitle),
         }).ToList();
     }
@@ -783,10 +861,11 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     /// <summary>The ticks in the View menu say which order is in use and whether downloaded books are hidden.</summary>
     private void UpdateViewMenu()
     {
-        menuSortTitle.Checked = _settings.SortOrder is not ("author" or "length" or "added");
+        menuSortTitle.Checked = _settings.SortOrder is not ("author" or "length" or "added" or "series");
         menuSortAuthor.Checked = _settings.SortOrder == "author";
         menuSortLength.Checked = _settings.SortOrder == "length";
         menuSortAdded.Checked = _settings.SortOrder == "added";
+        _menuSortSeries.Checked = _settings.SortOrder == "series";
         menuHideDownloaded.Checked = _settings.HideDownloaded;
     }
 
@@ -832,7 +911,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         if (providerCombo.SelectedItem is not IBookProvider provider)
             return;
 
-        if (provider is AudibleProvider audible && !audible.IsConnected)
+        if (IsAudible(provider) && !_audible.IsConnected)
         {
             SetStatus(Strings.T("Audible.SignInBeforeDownload"));
             StartAudibleSignIn();
@@ -844,6 +923,18 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         {
             SetStatus(Strings.T("Main.SelectFirst"));
             return;
+        }
+
+        // From the store, only books already in the library can be downloaded.
+        if (provider is AudibleStoreProvider)
+        {
+            var notOwned = books.Where(b => b.InLibrary == false).ToList();
+            if (notOwned.Count == books.Count)
+            {
+                SetStatus(string.Format(Strings.T("Store.NotOwned"), notOwned[0].Title));
+                return;
+            }
+            books = [.. books.Where(b => b.InLibrary != false)];
         }
 
         // Downloading a book a second time only makes a " (2)" copy, so ask first.
@@ -935,6 +1026,11 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
                       string.Format(Strings.T("Details.LengthValue"), book.LengthMinutes / 60, book.LengthMinutes % 60));
         if (!DisplayText.IsMissing(book.Series))
             lines.Add($"{Strings.T("Details.Series")}: {book.Series}");
+        if (NextInSeries(book) is { } next)
+            lines.Add($"{Strings.T("Details.NextInSeries")}: {next.Title}" +
+                      (next.AlreadyDownloaded ? $" ({BookInfo.AlreadyDownloadedText})" : ""));
+        if (book.InLibrary is { } owned)
+            lines.Add(Strings.T(owned ? "Store.InLibrary" : "Store.NotInLibrary"));
         if (!DisplayText.IsMissing(book.Language))
             lines.Add($"{Strings.T("Details.Language")}: {book.Language}");
         if (book.DateAdded is { } added)
@@ -950,6 +1046,111 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             lines.Add("" + Environment.NewLine + book.Info);
 
         MessageBox.Show(this, string.Join(Environment.NewLine, lines), Strings.T("Details.WindowTitle"),
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    /// <summary>The next book of the same series in the list, if there is one.</summary>
+    private BookInfo? NextInSeries(BookInfo book) =>
+        string.IsNullOrEmpty(book.SeriesName) || book.SeriesPosition <= 0
+            ? null
+            : _found.Where(b => string.Equals(b.SeriesName, book.SeriesName, StringComparison.OrdinalIgnoreCase) &&
+                                b.SeriesPosition > book.SeriesPosition)
+                    .OrderBy(b => b.SeriesPosition)
+                    .FirstOrDefault();
+
+    // ------------------------------------------------------------------
+    // the Audible store
+    // ------------------------------------------------------------------
+
+    /// <summary>Opens the selected book's page in the Audible store. Ctrl + Shift + S.</summary>
+    private void OpenStorePage()
+    {
+        if (!IsAudible(providerCombo.SelectedItem as IBookProvider) || libraryList.SelectedItem is not BookInfo book)
+        {
+            SetStatus(Strings.T("Store.ChooseAudible"));
+            return;
+        }
+
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = _audible.StorePageUrl(book.BookId),
+            UseShellExecute = true,
+        });
+        SetStatus(string.Format(Strings.T("Store.Opened"), book.Title));
+    }
+
+    private async Task ChangeWishlistAsync(bool add)
+    {
+        if (!IsAudible(providerCombo.SelectedItem as IBookProvider) || libraryList.SelectedItem is not BookInfo book)
+        {
+            SetStatus(Strings.T("Store.ChooseAudible"));
+            return;
+        }
+
+        if (add)
+            await _audible.AddToWishlistAsync(book.BookId);
+        else
+            await _audible.RemoveFromWishlistAsync(book.BookId);
+
+        SetStatus(string.Format(Strings.T(add ? "Store.WishAdded" : "Store.WishRemoved"), book.Title));
+
+        // The wishlist on screen follows the change.
+        if (providerCombo.SelectedItem is AudibleStoreProvider && string.IsNullOrWhiteSpace(searchBox.Text))
+            await LoadBooksAsync();
+    }
+
+    // ------------------------------------------------------------------
+    // backup and listening statistics
+    // ------------------------------------------------------------------
+
+    private async Task BackupNowAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_settings.BackupFolder))
+        {
+            SetStatus(Strings.T("Backup.NoFolder"));
+            OpenSettings(SettingsForm.SectionDownloads);
+            return;
+        }
+
+        SetStatus(string.Format(Strings.T("Backup.Running"), _settings.BackupFolder));
+        var copied = await new DownloadManager(_settings).BackupEverythingAsync();
+        SetStatus(string.Format(Strings.T("Backup.Done"), copied, _settings.BackupFolder));
+    }
+
+    /// <summary>How much has been listened to, in a message a screen reader reads in full.</summary>
+    private void ShowListeningStats()
+    {
+        var log = _settings.ListeningLog;
+        double Sum(Func<DateTime, bool> when) => log
+            .Where(e => DateTime.TryParse(e.Key, out var day) && when(day))
+            .Sum(e => e.Value);
+
+        var today = DateTime.Today;
+        var weekStart = today.AddDays(-6);
+        var monthStart = today.AddDays(-29);
+
+        // Days in a row with some listening, ending today or yesterday.
+        var streak = 0;
+        for (var day = log.ContainsKey(today.ToString("yyyy-MM-dd")) ? today : today.AddDays(-1);
+             log.TryGetValue(day.ToString("yyyy-MM-dd"), out var seconds) && seconds > 0;
+             day = day.AddDays(-1))
+            streak++;
+
+        static string Hours(double seconds) =>
+            string.Format(Strings.T("Stats.Duration"), (int)(seconds / 3600), (int)(seconds % 3600 / 60));
+
+        var lines = new[]
+        {
+            $"{Strings.T("Stats.Today")}: {Hours(Sum(d => d == today))}",
+            $"{Strings.T("Stats.Week")}: {Hours(Sum(d => d >= weekStart))}",
+            $"{Strings.T("Stats.Month")}: {Hours(Sum(d => d >= monthStart))}",
+            $"{Strings.T("Stats.Total")}: {Hours(Sum(_ => true))}",
+            $"{Strings.T("Stats.Streak")}: {streak}",
+            $"{Strings.T("Stats.Finished")}: {_settings.FinishedBooks.Count}",
+            $"{Strings.T("Stats.FinishedMonth")}: {_settings.FinishedBooks.Values.Count(v => DateTime.TryParse(v, out var d) && d >= monthStart)}",
+        };
+
+        MessageBox.Show(this, string.Join(Environment.NewLine, lines), Strings.T("Stats.Title"),
             MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
@@ -1588,9 +1789,14 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         if (IsDisposed)
             return;
 
-        UpdateAccountButton(_audible);
+        // The button belongs to whatever source is on screen: an automatic sign-in
+        // while LibriVox is chosen must not put an Audible button next to it.
+        UpdateAccountButton(providerCombo.SelectedItem as IBookProvider);
 
-        if (providerCombo.SelectedItem is AudibleProvider && !_audible.IsConnected)
+        if (!IsAudible(providerCombo.SelectedItem as IBookProvider))
+            return;
+
+        if (!_audible.IsConnected)
         {
             _found = [];
             RefreshBookList();
@@ -1601,8 +1807,8 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
 
         // Signed in: carry straight on into the library, so the list is already
         // there when the Settings dialog closes.
-        if (_audible.IsConnected && _settings.AudibleLoadLibraryAfterSignIn)
-            RunSafely(LoadBooksAsync, Strings.T("Main.Tasks.Search"));
+        if (_settings.AudibleLoadLibraryAfterSignIn)
+            RunSafely(OnProviderChangedAsync, Strings.T("Main.Tasks.Search"));
     }
 
     private void ShowAbout()
@@ -1745,6 +1951,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         },
         [ShortcutAction.BookDetails] = form => form.ShowBookDetails(),
         [ShortcutAction.ShowBookFile] = form => form.ShowBookFile(),
+        [ShortcutAction.StorePage] = form => form.OpenStorePage(),
         [ShortcutAction.SearchHistory] = form =>
         {
             // the search-history dropdown, from anywhere on the form

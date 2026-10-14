@@ -282,6 +282,32 @@ internal sealed class SettingsForm : Form
         _apply.Add(() => _settings.SaveCoverImage = cover.Checked);
 
         string[] parallel = ["1", "2", "3", "4"];
+        // Backup: every finished book is copied here too. A OneDrive folder is
+        // uploaded to the cloud by OneDrive itself.
+        var backup = row.AddCheck(Strings.T("Set.Backup"), _settings.BackupEnabled,
+            "Copy every finished book to a backup folder");
+        var backupFolder = NewTextBox(
+            string.IsNullOrWhiteSpace(_settings.BackupFolder) ? DownloadManager.SuggestedBackupFolder() ?? "" : _settings.BackupFolder,
+            Strings.Plain(Strings.T("Set.BackupFolder")).TrimEnd(':'), "");
+        row.AddLabeled(Strings.T("Set.BackupFolder"), backupFolder);
+        row.AddControl(BrowseButton("ChooseBackupFolder", Strings.T("Set.ChooseBackupFolder"), () =>
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = Strings.T("Set.ChooseBackupFolder"),
+                UseDescriptionForTitle = true,
+                ShowNewFolderButton = true,
+                SelectedPath = Directory.Exists(backupFolder.Text) ? backupFolder.Text : "",
+            };
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+                backupFolder.Text = dialog.SelectedPath;
+        }));
+        _apply.Add(() =>
+        {
+            _settings.BackupEnabled = backup.Checked;
+            _settings.BackupFolder = backupFolder.Text.Trim();
+        });
+
         var parallelCombo = NewCombo(parallel, Math.Clamp(_settings.MaxParallelDownloads, 1, 4).ToString(),
             Strings.Plain(Strings.T("Set.Parallel")).TrimEnd(':'), "");
         row.AddLabeled(Strings.T("Set.Parallel"), parallelCombo);
@@ -350,6 +376,53 @@ internal sealed class SettingsForm : Form
         var load = row.AddCheck(Strings.T("Set.LoadLibrary"), _settings.AudibleLoadLibraryAfterSignIn,
             "Load the Audible library after signing in");
         _apply.Add(() => _settings.AudibleLoadLibraryAfterSignIn = load.Checked);
+
+        // Several accounts: choose which one is in use, or add another.
+        var accounts = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
+            AccessibleName = Strings.Plain(Strings.T("Set.Accounts")).TrimEnd(':'),
+            AccessibleRole = AccessibleRole.ComboBox,
+        };
+        void FillAccounts()
+        {
+            accounts.Items.Clear();
+            foreach (var account in _audible.Accounts)
+                accounts.Items.Add(new AccountChoice(account));
+            accounts.SelectedItem = accounts.Items.Cast<AccountChoice>()
+                .FirstOrDefault(c => c.Account == _audible.ActiveAccount);
+        }
+        FillAccounts();
+        row.AddLabeled(Strings.T("Set.Accounts"), accounts);
+        accounts.SelectionChangeCommitted += (_, _) => RunSafely(async () =>
+        {
+            if (accounts.SelectedItem is not AccountChoice choice || choice.Account == _audible.ActiveAccount && _audible.IsConnected)
+                return;
+            SetAudibleStatus(Strings.T("Audible.SigningIn"));
+            var ok = await _audible.SwitchAccountAsync(choice.Account.Id);
+            SetAudibleStatus(ok ? string.Format(Strings.T("Set.SwitchedTo"), choice) : Strings.T("Audible.SignedOutSavedSignIn"));
+            UpdateAudibleState(announce: false);
+        }, Strings.T("Audible.SignInTask"));
+
+        var addAccount = new Button
+        {
+            Text = Strings.T("Set.AddAccount"),
+            AutoSize = true,
+            AccessibleName = Strings.Plain(Strings.T("Set.AddAccount")).TrimEnd('…'),
+        };
+        addAccount.Click += (_, _) => RunSafely(async () =>
+        {
+            _audible.BeginNewAccount();
+            using (var dialog = new AudibleCountryForm(_settings, _audible, _ => _settings.Save()))
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    await _audible.AbandonNewAccountAsync();
+            }
+            FillAccounts();
+            UpdateAudibleState(announce: true);
+        }, Strings.T("Audible.SignInTask"));
+        row.AddControl(addAccount);
 
         var podcasts = row.AddCheck(Strings.T("Set.IncludePodcasts"), _settings.AudibleIncludePodcasts,
             "List podcast episodes from my library");
@@ -602,6 +675,10 @@ internal sealed class SettingsForm : Form
             "Announce download progress milestones");
         _apply.Add(() => _settings.AnnounceProgress = progress.Checked);
 
+        var chapters = row.AddCheck(Strings.T("Set.AnnounceChapters"), _settings.AnnounceChapters,
+            "Say each chapter's name when the player reaches it");
+        _apply.Add(() => _settings.AnnounceChapters = chapters.Checked);
+
         var log = row.AddCheck(Strings.T("Set.KeepLog"), _settings.KeepActivityLogVisible,
             "Keep the activity log visible");
         _apply.Add(() => _settings.KeepActivityLogVisible = log.Checked);
@@ -759,6 +836,13 @@ internal sealed class SettingsForm : Form
         };
 
         return combo;
+    }
+
+    /// <summary>An account as the account list shows it: "name@example.com (India)".</summary>
+    private sealed record AccountChoice(AudibleAccount Account)
+    {
+        public override string ToString() =>
+            $"{(string.IsNullOrWhiteSpace(Account.Name) ? Strings.T("Set.NewAccount") : Account.Name)} ({Countries.Name(Account.Locale)})";
     }
 
     private ComboBox NewCombo(string[] items, string? selected, string accessibleName, string description, bool editable = false)

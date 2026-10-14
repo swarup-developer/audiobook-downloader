@@ -60,7 +60,11 @@ internal static class SelfTest
         CheckForm("Key prompt (AAXC)", () => new KeyPromptForm("book.aaxc", askKeyIv: true, askActivationBytes: false));
         CheckForm("Key prompt (AAX)", () => new KeyPromptForm("book.aax", askKeyIv: false, askActivationBytes: true));
         CheckForm("Player", () => new PlayerForm(settings, Path.Combine(Path.GetTempPath(), "no-such-book.m4b"), "Test book"));
+        CheckForm("Bookmarks", () => new BookmarksForm([new Bookmark { Seconds = 75, Note = "A good part" }, new Bookmark { Track = 2, Seconds = 4000 }], ["a.mp3", "b.mp3", "c.mp3"]));
+        CheckForm("Text prompt", () => new TextPrompt("Add bookmark", "Note for the bookmark at 1:15 (optional):", ""));
         CheckPlayerPlays();
+        CheckPlayerExtras();
+        CheckPlayerKeys();
         CheckTranslations();
         CheckConversion();
 
@@ -149,6 +153,9 @@ internal static class SelfTest
                 stoppedAt = player.Position;
                 player.Close();
             }
+
+            if (settings.ListeningLog.GetValueOrDefault(DateTime.Now.ToString("yyyy-MM-dd")) < 1)
+                Fail("listening time was not recorded for the listening statistics");
 
             var saved = settings.PlaybackPositions.GetValueOrDefault(tone);
             if (saved < 1)
@@ -266,6 +273,127 @@ internal static class SelfTest
             Fail($"translation: {problem}");
         if (problems.Count == 0)
             Line($"   {Strings.AvailableLanguages.Count} interface languages: every text is translated, every key exists, every placeholder kept");
+        Line("");
+    }
+
+    /// <summary>
+    /// The player's extras on real files: long silences are found where they are, and
+    /// the chapters inside a single M4B are read, so they can be moved between and named.
+    /// </summary>
+    private static void CheckPlayerExtras()
+    {
+        Line("== Player chapters and silences ==");
+
+        var folder = Path.Combine(Path.GetTempPath(), "audiobook-selftest-extras");
+        try
+        {
+            if (Directory.Exists(folder))
+                Directory.Delete(folder, recursive: true);
+            Directory.CreateDirectory(folder);
+
+            string Extract(string name)
+            {
+                var path = Path.Combine(folder, name);
+                using var resource = typeof(SelfTest).Assembly.GetManifestResourceStream("SelfTest." + name)!;
+                using var file = File.Create(path);
+                resource.CopyTo(file);
+                return path;
+            }
+
+            // Silence: 2 s of tone, 3 s of silence, 2 s of tone.
+            var silences = PlayerForm.FindSilences(Extract("silence.m4b"));
+            var found = silences.Count == 1 &&
+                        Math.Abs(silences[0].Start.TotalSeconds - 2) < 0.5 &&
+                        Math.Abs(silences[0].End.TotalSeconds - 5) < 0.5;
+            if (!found)
+                Fail($"skipping silence: expected one silence from 2 s to 5 s, found " +
+                     string.Join(", ", silences.Select(x => $"{x.Start.TotalSeconds:0.0}-{x.End.TotalSeconds:0.0} s")));
+
+            // Chapters inside one M4B, written the way an Audible download is.
+            var settings = new AppSettings { SavePath = Path.Combine(folder, "settings.json"), OutputFolder = folder };
+            var source = Extract("tiny.m4b");
+            string withChapters;
+            using (var input = File.OpenRead(source))
+            using (var mp4 = new AAXClean.Mp4File(input, input.Length))
+                withChapters = Task.Run(() => new DownloadManager(settings).ConvertAsync(mp4, Path.Combine(folder, "chapters.m4b"),
+                    new BookInfo("t", "1", "Chapters", "Self Test", "", 0, null, null, null), null, null, CancellationToken.None,
+                    [new("One", TimeSpan.Zero, TimeSpan.FromSeconds(1.5)), new("Two", TimeSpan.FromSeconds(1.5), TimeSpan.FromSeconds(1.5))]))
+                    .GetAwaiter().GetResult();
+
+            using (var player = new PlayerForm(settings, withChapters, "Chapters") { Muted = true })
+            {
+                player.Show();
+                var until = DateTime.UtcNow.AddSeconds(8);
+                while (DateTime.UtcNow < until && player.InFileChapterCount < 2)
+                {
+                    Application.DoEvents();
+                    Thread.Sleep(50);
+                }
+
+                if (player.InFileChapterCount != 2)
+                {
+                    Fail($"the player read {player.InFileChapterCount} chapters inside an M4B with 2");
+                    found = false;
+                }
+                player.Close();
+            }
+
+            var read = Mp4Chapters.Read(withChapters);
+            if (read.Count != 2 || Math.Abs(read[1].Start.TotalSeconds - 1.5) > 0.1)
+            {
+                Fail($"the chapters written into an M4B read back as {string.Join(", ", read.Select(c => $"{c.Title} at {c.Start.TotalSeconds:0.0} s"))}");
+                found = false;
+            }
+
+            if (found)
+                Line($"   one silence found from {silences[0].Start.TotalSeconds:0.0} s to {silences[0].End.TotalSeconds:0.0} s, " +
+                     "and the chapters inside an M4B are read for moving between them");
+        }
+        catch (Exception ex)
+        {
+            Fail($"the player extras could not be checked: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            try { Directory.Delete(folder, recursive: true); } catch { /* best effort */ }
+            Line("");
+        }
+    }
+
+    /// <summary>No two controls of the player share an Alt key, in any interface language.</summary>
+    private static void CheckPlayerKeys()
+    {
+        Line("== Player Alt keys ==");
+        var previous = Strings.Current;
+        var clashes = 0;
+        try
+        {
+            foreach (var language in Strings.AvailableLanguages)
+            {
+                Strings.SetLanguage(language.Code);
+                using var player = new PlayerForm(new AppSettings(), Path.Combine(Path.GetTempPath(), "none.m4b"), "Test");
+                var letters = Descendants(player)
+                    .Select(c => c.Text ?? "")
+                    .Select(t => t.IndexOf('&') is var at && at >= 0 && at + 1 < t.Length && t[at + 1] != '&' ? char.ToUpperInvariant(t[at + 1]) : ' ')
+                    .Where(letter => letter != ' ')
+                    .GroupBy(letter => letter)
+                    .Where(group => group.Count() > 1)
+                    .Select(group => group.Key)
+                    .ToList();
+                foreach (var letter in letters)
+                {
+                    clashes++;
+                    Fail($"player ({language.Code}): Alt + {letter} belongs to more than one control");
+                }
+            }
+        }
+        finally
+        {
+            Strings.SetLanguage(previous);
+        }
+
+        if (clashes == 0)
+            Line($"   every Alt key in the player belongs to one control, in all {Strings.AvailableLanguages.Count} languages");
         Line("");
     }
 
@@ -427,6 +555,8 @@ internal static class SelfTest
         yield return ("Key prompt (AAXC)", () => new KeyPromptForm("book.aaxc", askKeyIv: true, askActivationBytes: false));
         yield return ("Key prompt (AAX)", () => new KeyPromptForm("book.aax", askKeyIv: false, askActivationBytes: true));
         yield return ("Player", () => new PlayerForm(settings, Path.Combine(Path.GetTempPath(), "no-such-book.m4b"), "Test book"));
+        yield return ("Bookmarks", () => new BookmarksForm([new Bookmark { Seconds = 75, Note = "A good part" }, new Bookmark { Track = 2, Seconds = 4000 }], ["a.mp3", "b.mp3", "c.mp3"]));
+        yield return ("Text prompt", () => new TextPrompt("Add bookmark", "Note for the bookmark at 1:15 (optional):", ""));
     }
 
     private static void CheckDuplicateTabIndex(Control control, string formName)
