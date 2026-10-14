@@ -57,11 +57,11 @@ internal static class SelfTest
         CheckForm("Keyboard help", NewKeyboardHelpForm);
         CheckForm("Sign-in window", NewSignInForm);
         CheckForm("Country sign-in", NewCountrySignInForm);
-        CheckForm("Key prompt (AAXC)", () => new KeyPromptForm("book.aaxc", askKeyIv: true, askActivationBytes: false));
-        CheckForm("Key prompt (AAX)", () => new KeyPromptForm("book.aax", askKeyIv: false, askActivationBytes: true));
         CheckForm("Player", () => new PlayerForm(settings, Path.Combine(Path.GetTempPath(), "no-such-book.m4b"), "Test book"));
         CheckForm("Bookmarks", () => new BookmarksForm([new Bookmark { Seconds = 75, Note = "A good part" }, new Bookmark { Track = 2, Seconds = 4000 }], ["a.mp3", "b.mp3", "c.mp3"]));
         CheckForm("Text prompt", () => new TextPrompt("Add bookmark", "Note for the bookmark at 1:15 (optional):", ""));
+        CheckForm("Book details", () => new BookDetailsForm("A Book", ["Title: A Book", "Author: Someone"]));
+        CheckForm("Download format", () => new DownloadFormatForm("A Book", [("m4b", "M4B"), ("mp3", "MP3")], "mp3"));
         CheckPlayerPlays();
         CheckPlayerExtras();
         CheckPlayerKeys();
@@ -552,11 +552,11 @@ internal static class SelfTest
         yield return ("Keyboard help", NewKeyboardHelpForm);
         yield return ("Sign-in window", NewSignInForm);
         yield return ("Country sign-in", NewCountrySignInForm);
-        yield return ("Key prompt (AAXC)", () => new KeyPromptForm("book.aaxc", askKeyIv: true, askActivationBytes: false));
-        yield return ("Key prompt (AAX)", () => new KeyPromptForm("book.aax", askKeyIv: false, askActivationBytes: true));
         yield return ("Player", () => new PlayerForm(settings, Path.Combine(Path.GetTempPath(), "no-such-book.m4b"), "Test book"));
         yield return ("Bookmarks", () => new BookmarksForm([new Bookmark { Seconds = 75, Note = "A good part" }, new Bookmark { Track = 2, Seconds = 4000 }], ["a.mp3", "b.mp3", "c.mp3"]));
         yield return ("Text prompt", () => new TextPrompt("Add bookmark", "Note for the bookmark at 1:15 (optional):", ""));
+        yield return ("Book details", () => new BookDetailsForm("A Book", ["Title: A Book", "Author: Someone"]));
+        yield return ("Download format", () => new DownloadFormatForm("A Book", [("m4b", "M4B"), ("mp3", "MP3")], "mp3"));
     }
 
     private static void CheckDuplicateTabIndex(Control control, string formName)
@@ -601,7 +601,6 @@ internal static class SelfTest
             new LibriVoxProvider(),
             new InternetArchiveProvider(),
             new GutenbergProvider(settings),
-            new LocalFilesProvider(settings, null),
         };
 
         foreach (var provider in providers)
@@ -946,7 +945,7 @@ internal static class SelfTest
     /// </remarks>
     private static void CheckQueueMessages()
     {
-        Line("== Unfinished downloads, said out loud ==");
+        Line("== Download messages, said out loud ==");
 
         var previousLanguage = Strings.Current;
         var wrong = 0;
@@ -956,12 +955,12 @@ internal static class SelfTest
 
         try
         {
-            englishResuming = Strings.T("Main.ResumingQueue", 3);
-            englishRestored = Strings.T("Main.RestoredQueue", 3);
+            englishResuming = Strings.T("Main.DownloadsStarted", 3);
+            englishRestored = Strings.T("Main.ProgressPercent", 3);
         }
         catch (Exception ex)
         {
-            Fail($"the queue's messages could not be built: {ex.GetType().Name}: {ex.Message}");
+            Fail($"the download messages could not be built: {ex.GetType().Name}: {ex.Message}");
             Strings.SetLanguage(previousLanguage);
             return;
         }
@@ -972,8 +971,8 @@ internal static class SelfTest
 
             foreach (var (key, expected, english) in new[]
                      {
-                         ("Main.ResumingQueue", Strings.T("Main.ResumingQueue", 3), englishResuming),
-                         ("Main.RestoredQueue", Strings.T("Main.RestoredQueue", 3), englishRestored),
+                         ("Main.DownloadsStarted", Strings.T("Main.DownloadsStarted", 3), englishResuming),
+                         ("Main.ProgressPercent", Strings.T("Main.ProgressPercent", 3), englishRestored),
                      })
             {
                 if (LooksLikeUnresolvedKey(expected))
@@ -984,7 +983,7 @@ internal static class SelfTest
                 else if (!expected.Contains('3', StringComparison.Ordinal))
                 {
                     wrong++;
-                    Fail($"in {language.Code}, \"{key}\" does not say how many downloads it is about");
+                    Fail($"in {language.Code}, \"{key}\" does not say its number");
                 }
                 else if (language.Code != "en" && string.Equals(expected, english, StringComparison.Ordinal))
                 {
@@ -999,7 +998,7 @@ internal static class SelfTest
         if (wrong == 0)
         {
             Line("   2 messages in " + Strings.AvailableLanguages.Count +
-                 " languages: the returned batch is announced, with how many downloads it is about");
+                 " languages: several books starting, and the percentage, each with its number");
         }
 
         Line("");
@@ -1718,48 +1717,6 @@ internal static class SelfTest
         if (!inMenu.Contains(Keys.F1))
             Fail("no menu item answers F1, so the shortcut list cannot be opened from the keyboard alone");
 
-        CheckQueueMenuShowsTheKeys(window);
-    }
-
-    /// <summary>
-    /// The download queue shows its actions' keys beside them. A menu that says
-    /// "Ctrl + R" while the application answers something else is worse than one that
-    /// says nothing, so the displayed text is compared with the shortcut table.
-    /// </summary>
-    private static void CheckQueueMenuShowsTheKeys(MainForm window)
-    {
-        var queue = Descendants(window).OfType<ListBox>()
-            .FirstOrDefault(list => list.Name == "queueList");
-
-        if (queue?.ContextMenuStrip is not { } menu)
-        {
-            Fail("the download queue has no menu of its own, so Retry, Remove and Clear " +
-                 "finished cannot be reached without a mouse");
-            return;
-        }
-
-        var expected = new Dictionary<string, string>
-        {
-            ["queueMenuRetry"] = Describe(ShortcutAction.RetryQueueItem),
-            ["queueMenuRemove"] = Describe(ShortcutAction.RemoveQueueItem),
-            ["queueMenuClearFinished"] = Describe(ShortcutAction.ClearFinishedItems),
-        };
-
-        var wrong = new List<string>();
-
-        foreach (var item in menu.Items.OfType<ToolStripMenuItem>())
-        {
-            if (!expected.TryGetValue(item.Name ?? string.Empty, out var keys))
-                continue;
-
-            if (!string.Equals(item.ShortcutKeyDisplayString, keys, StringComparison.Ordinal))
-                wrong.Add($"{item.Name} shows \"{item.ShortcutKeyDisplayString}\" rather than \"{keys}\"");
-        }
-
-        if (wrong.Count > 0)
-            Fail($"the queue's menu shows the wrong keys: {string.Join("; ", wrong)}");
-        else
-            Line("   the queue's menu shows the same keys the application answers");
     }
 
     /// <summary>The keys the shortcut table gives one action, as the help would show them.</summary>
@@ -1808,8 +1765,6 @@ internal static class SelfTest
             // says whether anyone is signed in, so it has to be on screen.
             Strings.T("Main.SignIn"),
             Strings.T("Main.SignOut"),
-            // Only ever shown while it has something to say.
-            Strings.T("Main.GotIt"),
         ];
 
         for (var i = 0; i < permanent.Length; i++)

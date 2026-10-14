@@ -3,13 +3,12 @@ using Microsoft.Toolkit.Uwp.Notifications;
 
 namespace AudiobookDownloader.WinForms;
 
-public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
+public partial class MainForm : Form, IAudibleSignInWindow
 {
     private readonly AppSettings _settings;
     private readonly DownloadQueue _queue;
     private readonly AudibleProvider _audible;
     private readonly BindingSource _booksBinding = new();
-    private readonly BindingSource _queueBinding = new();
 
     /// <summary>What the provider returned for the last search.</summary>
     private List<BookInfo> _found = [];
@@ -17,12 +16,8 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     /// <summary>What the list shows: <see cref="_found"/>, sorted, without hidden rows.</summary>
     private List<BookInfo> _books = [];
     private QueueItem? _lastAnnounced;
-    private Panel _notifyPanel = null!;
-    private Label _notifyLabel = null!;
-    private Button _notifyDismiss = null!;
 
     private bool _suppressProviderEvents;
-    private bool _suppressLanguageEvents;
     private bool _helpOpen;
     private int _lastProgressMilestone = -1;
 
@@ -41,20 +36,24 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     private ToolStripMenuItem _menuStats = null!;
     private ToolStripMenuItem _menuBackupNow = null!;
     private ContextMenuStrip _bookMenu = null!;
+    private ToolStripMenuItem _bookMenuDownload = null!;
     private ToolStripMenuItem _bookMenuPlay = null!;
     private ToolStripMenuItem _bookMenuDetails = null!;
-    private ToolStripMenuItem _bookMenuStore = null!;
-    private ToolStripMenuItem _bookMenuAddWish = null!;
-    private ToolStripMenuItem _bookMenuRemoveWish = null!;
 
     private readonly System.Windows.Forms.Timer _providerSettle = new() { Interval = 450 };
-    private readonly System.Windows.Forms.Timer _languageSettle = new() { Interval = 450 };
 
-    /// <summary>The row of the status group that holds the activity log.</summary>
-    private const int LogRowIndex = 1;
+    /// <summary>Downloads already greeted with the success sound, so each gets it once.</summary>
+    private readonly HashSet<Guid> _finishedDownloads = [];
 
-    /// <summary>Its height when shown, matching the designer.</summary>
-    private const float LogRowHeight = 100F;
+    /// <summary>
+    /// A screen of progress is drawn once however many reports arrive while it is
+    /// waiting: downloads report far more often than anyone can hear, and a message
+    /// for each one kept the window, and the screen reader with it, busy for seconds.
+    /// </summary>
+    private int _queueChangePending;
+
+    /// <summary>The last percent beeped for, and for which download.</summary>
+    private (Guid Item, int Percent) _lastBeep = (Guid.Empty, -1);
 
     public MainForm()
     {
@@ -71,18 +70,16 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         // updated by whichever screen happened to start the sign-in.
         _audible.ConnectionChanged += OnAudibleConnectionChanged;
 
-        // The queue is kept in a file beside the settings, so a batch that is
-        // interrupted by closing the app is picked up again by the next run.
-        _queue = new DownloadQueue(new DownloadManager(_settings), QueueStore.Default())
+        // The selected books download one after another (or a few at once, as set in
+        // Settings). Nothing is kept for the next run: there is no queue to manage.
+        _queue = new DownloadQueue(new DownloadManager(_settings))
         {
             Parallelism = () => _settings.MaxParallelDownloads,
         };
-        Log.MessageLogged += OnLogMessage;
         _queue.Changed += OnQueueChanged;
         _queue.QueueFinished += OnQueueFinished;
 
         RegisterProviders();
-        BuildNotificationPanel();
         WireMenus();
 
         _providerSettle.Tick += (_, _) =>
@@ -90,15 +87,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             _providerSettle.Stop();
             RunSafely(OnProviderChangedAsync, Strings.T("Main.Tasks.Provider"));
         };
-        _languageSettle.Tick += (_, _) =>
-        {
-            _languageSettle.Stop();
-            RunSafely(LoadBooksAsync, Strings.T("Main.Tasks.Language"));
-        };
-
-        // The language list reads "Hindi", not "Hindi (hi)": the code is how the
-        // search is sent, never how a language is named to a person.
-        languageCombo.DisplayMember = nameof(LanguageOption.DisplayName);
 
         // The SelectedIndexChanged handler is wired up in the designer. Filling the
         // list and restoring the last provider happens with events suppressed, so
@@ -112,12 +100,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         // which is what NVDA should read for every row.
         libraryList.DataSource = _booksBinding;
 
-        // No DisplayMember either: QueueItem.ToString() reads as
-        // "Title - Author — active, 45 percent" etc.
-        queueList.DataSource = _queueBinding;
-
         ApplyLocalization();
-        ApplyAccessibilityPreferences();
 
         // Follow Windows high contrast, and keep following it while the app runs.
         SystemTheme.Follow(this, ApplyTheme);
@@ -131,18 +114,11 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
 
         Load += async (_, _) =>
         {
-            // An unfinished batch comes back the moment the window opens, so its rows
-            // are on screen straight away; it is announced afterwards, so that the
-            // message does not talk over the first screen's own.
-            var unfinished = ResumeUnfinishedDownloads();
-
             // A remembered Audible sign-in is simply used: no button to press, and no
             // sign-in page unless the saved one has stopped working.
             await ResumeAudibleSessionAsync();
 
             await OnProviderChangedAsync();
-
-            AnnounceUnfinishedDownloads(unfinished);
 
             if (_settings.AudibleAutoDownloadNew && _audible.IsConnected)
                 RunSafely(DownloadNewPurchasesAsync, "looking for new Audible books");
@@ -154,8 +130,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         FormClosing += (_, _) =>
         {
             _providerSettle.Stop();
-            _languageSettle.Stop();
-            Log.MessageLogged -= OnLogMessage;
             _queue.Changed -= OnQueueChanged;
             _queue.QueueFinished -= OnQueueFinished;
 
@@ -167,55 +141,17 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         };
     }
 
-    /// <summary>
-    /// Start the downloads an earlier run left unfinished, and report how many came
-    /// back. Queued work is the user's own, and closing the app in the middle of a
-    /// batch is not a reason to make them find and queue every book again.
-    /// </summary>
-    /// <remarks>
-    /// Nothing else happens here: items that failed or were cancelled come back as
-    /// they were left, waiting for Retry, because a cancel is an instruction and not
-    /// an accident to be undone on the next start.
-    /// </remarks>
-    private int ResumeUnfinishedDownloads()
-    {
-        var restored = _queue.RestoreSaved();
-
-        if (restored > 0 && _queue.Items.Any(item => item.Status == QueueStatus.Pending))
-            _queue.Start();
-
-        return restored;
-    }
-
-    /// <summary>
-    /// Say what the unfinished batch is doing: resuming, or waiting to be retried.
-    /// Nothing is ever started in silence.
-    /// </summary>
-    private void AnnounceUnfinishedDownloads(int restored)
-    {
-        if (restored == 0)
-            return;
-
-        var pending = _queue.Items.Count(item => item.Status == QueueStatus.Pending);
-
-        SetStatus(pending > 0
-            ? string.Format(Strings.T("Main.ResumingQueue"), pending)
-            : string.Format(Strings.T("Main.RestoredQueue"), restored));
-    }
-
     private void RegisterProviders()
     {
         ProviderRegistry.Reset();
         ProviderRegistry.Register(_audible);
-        ProviderRegistry.Register(new AudibleStoreProvider(_audible));
         ProviderRegistry.Register(new LibriVoxProvider(_settings));
         ProviderRegistry.Register(new InternetArchiveProvider());
         ProviderRegistry.Register(new GutenbergProvider(_settings));
-        ProviderRegistry.Register(new LocalFilesProvider(_settings, this));
     }
 
-    /// <summary>Audible itself, or its store: both need the Audible sign-in.</summary>
-    private static bool IsAudible(IBookProvider? provider) => provider is AudibleProvider or AudibleStoreProvider;
+    /// <summary>The source that needs the Audible sign-in.</summary>
+    private static bool IsAudible(IBookProvider? provider) => provider is AudibleProvider;
 
     /// <summary>
     /// Menu entries added in code: sort by series, listening statistics and "back up
@@ -237,22 +173,13 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         menuApplication.DropDownItems.Insert(menuApplication.DropDownItems.IndexOf(menuAppSeparator), _menuBackupNow);
 
         _bookMenu = new ContextMenuStrip { Name = "bookMenu" };
+        _bookMenuDownload = new ToolStripMenuItem { ShortcutKeyDisplayString = "Enter", Name = "bookMenuDownload" };
+        _bookMenuDownload.Click += (_, _) => downloadButton_Click(this, EventArgs.Empty);
         _bookMenuPlay = new ToolStripMenuItem { ShortcutKeyDisplayString = "Ctrl + P" };
         _bookMenuPlay.Click += (_, _) => PlaySelectedBook();
         _bookMenuDetails = new ToolStripMenuItem { ShortcutKeyDisplayString = "Ctrl + I" };
         _bookMenuDetails.Click += (_, _) => ShowBookDetails();
-        _bookMenuStore = new ToolStripMenuItem { ShortcutKeyDisplayString = "Ctrl + Shift + S" };
-        _bookMenuStore.Click += (_, _) => OpenStorePage();
-        _bookMenuAddWish = new ToolStripMenuItem();
-        _bookMenuAddWish.Click += (_, _) => RunSafely(() => ChangeWishlistAsync(add: true), "changing the wishlist");
-        _bookMenuRemoveWish = new ToolStripMenuItem();
-        _bookMenuRemoveWish.Click += (_, _) => RunSafely(() => ChangeWishlistAsync(add: false), "changing the wishlist");
-        _bookMenu.Items.AddRange([_bookMenuPlay, _bookMenuDetails, new ToolStripSeparator(), _bookMenuStore, _bookMenuAddWish, _bookMenuRemoveWish]);
-        _bookMenu.Opening += (_, _) =>
-        {
-            var audible = IsAudible(providerCombo.SelectedItem as IBookProvider);
-            _bookMenuStore.Visible = _bookMenuAddWish.Visible = _bookMenuRemoveWish.Visible = audible;
-        };
+        _bookMenu.Items.AddRange([_bookMenuDownload, _bookMenuPlay, _bookMenuDetails]);
         libraryList.ContextMenuStrip = _bookMenu;
     }
 
@@ -265,23 +192,14 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         menuShortcuts.Click += (_, _) => ShowKeyboardHelp();
         menuRefresh.Click += (_, _) => RunSafely(LoadBooksAsync, Strings.T("Main.Tasks.Reload"));
         menuOpenFolder.Click += (_, _) => OpenDownloadFolder();
-        menuKeys.Click += (_, _) => ShowDecryptionKeyHelp();
         menuExport.Click += (_, _) => ExportBookList();
         menuPlay.Click += (_, _) => PlaySelectedBook();
-        menuUnlock.Click += (_, _) => RemoveDrmFromDownloads(askFirst: false);
         menuSortTitle.Click += (_, _) => SetSortOrder("title", "Main.SortNameTitle");
         menuSortAuthor.Click += (_, _) => SetSortOrder("author", "Main.SortNameAuthor");
         menuSortLength.Click += (_, _) => SetSortOrder("length", "Main.SortNameLength");
         menuSortAdded.Click += (_, _) => SetSortOrder("added", "Main.SortNameAdded");
         menuHideDownloaded.Click += (_, _) => ToggleHideDownloaded();
         menuCheckUpdates.Click += (_, _) => RunSafely(() => CheckForUpdatesAsync(quiet: false), "checking for updates");
-
-        // The queue's actions, reachable from the queue's own menu AND from the
-        // keyboard shortcuts. They call the same methods, so the two cannot drift
-        // apart, and nothing has to be a button on the window to be usable.
-        queueMenuRetry.Click += (_, _) => RetrySelectedQueueItem();
-        queueMenuRemove.Click += (_, _) => RemoveSelectedQueueItem();
-        queueMenuClearFinished.Click += (_, _) => ClearFinishedQueueItems();
     }
 
     // ------------------------------------------------------------------
@@ -315,11 +233,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         searchButton.Text = Strings.T("Main.SearchButton");
         searchButton.AccessibleName = Strings.Plain(Strings.T("Main.SearchButton"));
 
-        languageLabel.Text = Strings.T("Main.Language");
-        languageCombo.AccessibleName = Strings.T("Main.LanguageAccessible");
-        languageRow.Visible = languageCombo.Visible = languageLabel.Visible =
-            providerCombo.SelectedItem is ILanguageFilter;
-
         UpdateLibraryLabel(providerCombo.SelectedItem as IBookProvider);
 
         downloadButton.Text = Strings.T("Main.Download");
@@ -328,17 +241,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         cancelButton.Text = Strings.T("Main.Cancel");
         cancelButton.AccessibleName = Strings.Plain(Strings.T("Main.Cancel"));
 
-        // The queue's actions are localised where they are shown: on the queue list's
-        // context menu, which is the only place they appear.
-        queueMenuRetry.Text = Strings.T("QueueMenu.Retry");
-        queueMenuRetry.AccessibleName = Strings.Plain(Strings.T("QueueMenu.Retry"));
-
-        queueMenuRemove.Text = Strings.T("QueueMenu.Remove");
-        queueMenuRemove.AccessibleName = Strings.Plain(Strings.T("QueueMenu.Remove"));
-
-        queueMenuClearFinished.Text = Strings.T("QueueMenu.ClearFinished");
-        queueMenuClearFinished.AccessibleName = Strings.Plain(Strings.T("QueueMenu.ClearFinished"));
-
         menuOpenFolder.Text = Strings.T("Main.OpenFolder");
         menuExport.Text = Strings.T("Menu.Export");
         foreach (var (item, key) in new (ToolStripMenuItem, string)[]
@@ -346,7 +248,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             (menuPlay, "Menu.Play"), (menuView, "Menu.View"), (menuSortTitle, "Menu.SortTitle"),
             (menuSortAuthor, "Menu.SortAuthor"), (menuSortLength, "Menu.SortLength"),
             (menuSortAdded, "Menu.SortAdded"), (menuHideDownloaded, "Menu.HideDownloaded"),
-            (menuCheckUpdates, "Menu.CheckUpdates"), (menuUnlock, "Menu.UnlockExisting"),
+            (menuCheckUpdates, "Menu.CheckUpdates"),
         })
         {
             item.Text = Strings.T(key);
@@ -355,8 +257,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         foreach (var (item, key) in new (ToolStripMenuItem, string)[]
         {
             (_menuSortSeries, "Menu.SortSeries"), (_menuStats, "Menu.Stats"), (_menuBackupNow, "Menu.BackupNow"),
-            (_bookMenuPlay, "Menu.Play"), (_bookMenuDetails, "BookMenu.Details"), (_bookMenuStore, "BookMenu.Store"),
-            (_bookMenuAddWish, "BookMenu.AddWish"), (_bookMenuRemoveWish, "BookMenu.RemoveWish"),
+            (_bookMenuDownload, "BookMenu.Download"), (_bookMenuPlay, "Menu.Play"), (_bookMenuDetails, "BookMenu.Details"),
         })
         {
             item.Text = Strings.T(key);
@@ -367,44 +268,16 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         Strings.ApplyDirection(this);
         menuExport.AccessibleName = Strings.Plain(Strings.T("Menu.Export")).TrimEnd('…', '.');
         BookInfo.AlreadyDownloadedText = Strings.T("Main.AlreadyDownloaded");
-        menuKeys.Text = Strings.T("Main.Keys");
 
         progressLabel.Text = Strings.T("Main.Progress") + ":";
         progressBar.AccessibleName = Strings.T("Main.Progress");
         progressStatus.AccessibleName = Strings.T("Main.ProgressStatus");
 
-        queueList.AccessibleName = Strings.T("Main.QueueList");
-
         statusLabel.AccessibleName = Strings.T("Main.Status");
-        logBox.AccessibleName = Strings.T("Main.Log");
 
-        if (_notifyPanel is not null)
-        {
-            _notifyPanel.AccessibleName = Strings.T("Main.Notification");
-            _notifyLabel.AccessibleName = Strings.T("Main.NotificationMessage");
-            _notifyDismiss.Text = Strings.T("Main.GotIt");
-            _notifyDismiss.AccessibleName = Strings.Plain(Strings.T("Main.GotIt"));
-        }
 
         if (providerCombo.SelectedItem is IBookProvider provider)
             UpdateAccountButton(provider);
-    }
-
-    private void ApplyAccessibilityPreferences()
-    {
-        SetActivityLogVisible(_settings.KeepActivityLogVisible);
-    }
-
-    /// <summary>
-    /// Show or hide the activity log. The log sits in its own row inside the
-    /// status group, and a hidden control still leaves that row's height behind
-    /// as an empty strip, so the row itself is collapsed and given its height
-    /// back.
-    /// </summary>
-    internal void SetActivityLogVisible(bool visible)
-    {
-        logBox.Visible = visible;
-        statusLayout.RowStyles[LogRowIndex].Height = visible ? LogRowHeight : 0F;
     }
 
     /// <summary>
@@ -417,43 +290,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         providerStatus.ForeColor = SystemTheme.HintText;
         libraryHint.ForeColor = SystemTheme.HintText;
         progressStatus.ForeColor = SystemTheme.HintText;
-        logBox.BackColor = SystemTheme.ReadOnlyBackground;
 
-        if (_notifyPanel is not null)
-        {
-            _notifyPanel.BackColor = SystemTheme.NoticeBackground;
-            _notifyLabel.ForeColor = SystemTheme.NoticeText;
-        }
-    }
-
-    /// <summary>
-    /// Ctrl+L shows or hides the activity log and remembers the choice; Alt+L
-    /// goes to it, showing it first if it is hidden. Without this the shortcut
-    /// did nothing at all once the log had been hidden in Settings.
-    /// </summary>
-    private void ToggleActivityLog()
-    {
-        var show = !logBox.Visible;
-        _settings.KeepActivityLogVisible = show;
-        _settings.Save();
-
-        SetActivityLogVisible(show);
-        SetStatus(Strings.T(show ? "Main.LogShown" : "Main.LogHidden"));
-
-        if (show)
-            logBox.Focus();
-    }
-
-    private void ShowActivityLog()
-    {
-        if (!logBox.Visible)
-        {
-            _settings.KeepActivityLogVisible = true;
-            _settings.Save();
-            SetActivityLogVisible(true);
-        }
-
-        logBox.Focus();
     }
 
     // ------------------------------------------------------------------
@@ -491,7 +328,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     /// <summary>The account button, the language list, the list caption and the search history for one provider.</summary>
     private void ShowProviderControls(IBookProvider provider)
     {
-        UpdateLanguageSelector(provider);
         UpdateAccountButton(provider);
         UpdateLibraryLabel(provider);
         RefreshSearchHistory();
@@ -503,9 +339,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     /// </summary>
     private void UpdateLibraryLabel(IBookProvider? provider)
     {
-        var key = provider is AudibleProvider ? "Main.BooksAudible"
-            : provider is AudibleStoreProvider ? "Main.BooksStore"
-            : "Main.Books";
+        var key = provider is AudibleProvider ? "Main.BooksAudible" : "Main.Books";
         libraryLabel.Text = Strings.T(key);
         libraryList.AccessibleName = Strings.Plain(Strings.T(key)).TrimEnd(':', ' ');
     }
@@ -529,17 +363,12 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             return;
         }
 
-        var drm = provider.HasDrm
-            ? Strings.T(_settings.DrmRemovalEnabled ? "Main.HasDrm" : "Main.DrmKept")
-            : Strings.T("Main.NoDrm");
+        var drm = Strings.T(provider.HasDrm ? "Main.HasDrm" : "Main.NoDrm");
         SetProviderStatus(provider.RequiresLogin && !provider.IsConnected
             ? Strings.T("Main.NotSignedIn")
             : IsAudible(provider) && _audible.ActiveAccount is { } account && !string.IsNullOrWhiteSpace(account.Name)
                 ? string.Format(Strings.T("Main.SignedInAs"), account.Name, Countries.Name(account.Locale)) + " " + drm
                 : drm);
-
-        if (provider is AudibleStoreProvider && string.IsNullOrWhiteSpace(searchBox.Text))
-            SetLibraryHint(Strings.T("Store.Hint"));
 
         // "Load my library automatically after signing in" off: wait for an explicit search.
         if (provider is AudibleProvider && !_settings.AudibleLoadLibraryAfterSignIn &&
@@ -565,62 +394,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         foreach (var s in _settings.GetSearches(provider.Id))
             searchBox.Items.Add(s);
         searchBox.Text = current; // keep what the user was typing
-    }
-
-    /// <summary>
-    /// Show the book-language selector only for providers that can filter by
-    /// language, and fill it with every language that provider supports.
-    /// </summary>
-    private void UpdateLanguageSelector(IBookProvider provider)
-    {
-        var filter = provider as ILanguageFilter;
-
-        // The whole row appears for Project Gutenberg — the only source with a
-        // book language — and disappears completely for every other provider.
-        languageRow.Visible = filter is not null;
-        languageLabel.Visible = filter is not null;
-        languageCombo.Visible = filter is not null;
-        languageCombo.Enabled = filter is not null;
-
-        _suppressLanguageEvents = true;
-        try
-        {
-            languageCombo.Items.Clear();
-            if (filter is null)
-                return;
-
-            languageCombo.Items.Add(new LanguageOption("", Strings.T("Main.AllLanguages")));
-            foreach (var language in filter.SupportedLanguages.Where(l => !string.IsNullOrWhiteSpace(l.Code)))
-                languageCombo.Items.Add(language);
-
-            var current = languageCombo.Items.Cast<LanguageOption>()
-                              .FirstOrDefault(l => l.Code == filter.CurrentLanguage)
-                          ?? languageCombo.Items[0];
-            languageCombo.SelectedItem = current;
-        }
-        finally
-        {
-            _suppressLanguageEvents = false;
-        }
-    }
-
-    private void languageCombo_SelectedIndexChanged(object? sender, EventArgs e)
-    {
-        if (_suppressLanguageEvents)
-            return;
-
-        if (providerCombo.SelectedItem is not ILanguageFilter filter ||
-            languageCombo.SelectedItem is not LanguageOption language)
-            return;
-
-        filter.CurrentLanguage = language.Code;
-        _settings.Save();
-
-        // Nothing is announced per key press (the screen reader reads the language
-        // the list moved to) and the search waits until the choice has settled.
-        _loadGeneration++;
-        _languageSettle.Stop();
-        _languageSettle.Start();
     }
 
     /// <summary>
@@ -762,9 +535,9 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             SetLibraryHint(_books.Count > 0 ? ""
                 : hidden > 0 ? Strings.T("Main.AllHidden")
                 : Strings.T("Main.NoBooks"));
-            var language = provider is ILanguageFilter { CurrentLanguage.Length: > 0 } &&
-                           languageCombo.SelectedItem is LanguageOption { Code.Length: > 0 } chosen
-                ? chosen.DisplayName
+            // The book language is chosen in Settings, Language; the count says which it is.
+            var language = provider is ILanguageFilter { CurrentLanguage.Length: > 0 } filter
+                ? filter.SupportedLanguages.FirstOrDefault(l => l.Code == filter.CurrentLanguage)?.DisplayName
                 : null;
             SetStatus(hidden > 0
                 ? string.Format(Strings.T("Main.HiddenCount"), _books.Count, hidden)
@@ -872,8 +645,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     /// <summary>The row says "already downloaded" when its file is in the download folder.</summary>
     private BookInfo MarkDownloaded(BookInfo book)
     {
-        var downloaded = book.ProviderId != LocalFilesProvider.ProviderId &&
-                         DownloadManager.FindExistingDownload(_settings, book) is not null;
+        var downloaded = DownloadManager.FindExistingDownload(_settings, book) is not null;
         return book.AlreadyDownloaded == downloaded ? book : book with { AlreadyDownloaded = downloaded };
     }
 
@@ -925,16 +697,23 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             return;
         }
 
-        // From the store, only books already in the library can be downloaded.
-        if (provider is AudibleStoreProvider)
+        // Every Audible book has its DRM removed. A book that was not bought (an
+        // Audible Plus title) gets a notice first, and is left out unless it is accepted.
+        var notBought = books.Where(b => b.Purchased == false).ToList();
+        if (notBought.Count > 0)
         {
-            var notOwned = books.Where(b => b.InLibrary == false).ToList();
-            if (notOwned.Count == books.Count)
+            var titles = string.Join("\n", notBought.Take(10).Select(b => "- " + b.Title)) +
+                         (notBought.Count > 10 ? "\n…" : "");
+            var answer = MessageBox.Show(this, string.Format(Strings.T("Drm.NotPurchased"), titles),
+                Strings.T("Drm.NotPurchasedTitle"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+            if (answer != DialogResult.Yes)
+                books = [.. books.Where(b => b.Purchased != false)];
+            if (books.Count == 0)
             {
-                SetStatus(string.Format(Strings.T("Store.NotOwned"), notOwned[0].Title));
+                SetStatus(Strings.T("Main.NothingQueued"));
                 return;
             }
-            books = [.. books.Where(b => b.InLibrary != false)];
         }
 
         // Downloading a book a second time only makes a " (2)" copy, so ask first.
@@ -960,13 +739,104 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
                 books = [.. books.Where(book => !book.AlreadyDownloaded)];
         }
 
+        // Which format: asked every time, with the last choice already selected.
+        if (AskFormat(provider, books) is not { } chosen)
+        {
+            SetStatus(Strings.T("Main.NothingQueued"));
+            return;
+        }
+
         foreach (var book in books)
-            _queue.Enqueue(provider, book);
+            _queue.Enqueue(provider, WithFormat(book, chosen));
 
         _queue.Start();
-        SetStatus(string.Format(Strings.T("Main.AddedToQueue"), books.Count));
-        queueList.Focus();
+        SetStatus(books.Count == 1
+            ? string.Format(Strings.T("Main.DownloadStarted"), books[0].Title)
+            : string.Format(Strings.T("Main.DownloadsStarted"), books.Count));
+
+        // Focus goes to the progress bar, so the screen reader follows the download.
+        progressBar.Focus();
     }
+
+    /// <summary>
+    /// The formats this source can deliver for these books, in a small window that
+    /// opens when Download is pressed. Null when it is cancelled. The choice is
+    /// remembered and offered first next time.
+    /// </summary>
+    private string? AskFormat(IBookProvider provider, IReadOnlyList<BookInfo> books)
+    {
+        List<(string Code, string Text)> options;
+        string? preselect;
+
+        if (provider is AudibleProvider)
+        {
+            options =
+            [
+                ("m4b", Strings.T("Format.M4b")),
+                ("mp3", Strings.T("Format.Mp3")),
+                ("m4b-chapters", Strings.T("Format.M4bChapters")),
+                ("mp3-chapters", Strings.T("Format.Mp3Chapters")),
+            ];
+            preselect = (_settings.OutputFormat == "mp3" ? "mp3" : "m4b") + (_settings.SplitByChapter ? "-chapters" : "");
+        }
+        else if (provider is GutenbergProvider)
+        {
+            // Only the formats at least one of these books really has.
+            var codes = new[] { "audio", "epub", "html", "txt" }
+                .Where(code => books.Any(b => b.Formats?.ContainsKey(code) == true))
+                .ToList();
+            if (codes.Count == 0)
+                codes = ["epub"];
+            options = [.. codes.Select(code => (code, Strings.T(code switch
+            {
+                "audio" => "Format.Audio",
+                "html" => "Format.Html",
+                "txt" => "Format.Text",
+                _ => "Format.Epub",
+            })))];
+            preselect = _settings.GutenbergFormat;
+        }
+        else if (provider is LibriVoxProvider)
+        {
+            options = [("zip", Strings.T("Format.LibriVoxZip"))];
+            preselect = "zip";
+        }
+        else
+        {
+            options = [("zip", Strings.T("Format.ArchiveZip"))];
+            preselect = "zip";
+        }
+
+        var what = books.Count == 1 ? books[0].Title : string.Format(Strings.T("DownloadFormat.Books"), books.Count);
+        using var dialog = new DownloadFormatForm(what, options, preselect);
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return null;
+
+        var chosen = dialog.ChosenCode;
+        if (provider is AudibleProvider)
+        {
+            _settings.OutputFormat = chosen.StartsWith("mp3", StringComparison.Ordinal) ? "mp3" : "m4b";
+            _settings.SplitByChapter = chosen.EndsWith("-chapters", StringComparison.Ordinal);
+        }
+        else if (provider is GutenbergProvider)
+        {
+            _settings.GutenbergFormat = chosen;
+        }
+        _settings.Save();
+        return chosen;
+    }
+
+    /// <summary>The book as it is to be downloaded: in the chosen format.</summary>
+    private static BookInfo WithFormat(BookInfo book, string format) =>
+        book.ProviderId == GutenbergProvider.ProviderId
+            // A Gutenberg book downloads the file of the chosen format; one that does
+            // not have it keeps the file it was listed with.
+            ? book.Formats?.TryGetValue(format, out var url) == true
+                ? book with { Format = format, DownloadUrl = url }
+                : book
+            : book.ProviderId == AudibleProvider.ProviderId
+                ? book with { Format = format }
+                : book;
 
     private void libraryList_DoubleClick(object? sender, EventArgs e) =>
         downloadButton_Click(sender, e);
@@ -1029,8 +899,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         if (NextInSeries(book) is { } next)
             lines.Add($"{Strings.T("Details.NextInSeries")}: {next.Title}" +
                       (next.AlreadyDownloaded ? $" ({BookInfo.AlreadyDownloadedText})" : ""));
-        if (book.InLibrary is { } owned)
-            lines.Add(Strings.T(owned ? "Store.InLibrary" : "Store.NotInLibrary"));
         if (!DisplayText.IsMissing(book.Language))
             lines.Add($"{Strings.T("Details.Language")}: {book.Language}");
         if (book.DateAdded is { } added)
@@ -1041,12 +909,12 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         if (DownloadManager.FindExistingDownload(_settings, book) is { } file)
             lines.Add($"{Strings.T("Details.File")}: {file}");
         if (!DisplayText.IsMissing(book.Description))
-            lines.Add(Environment.NewLine + $"{Strings.T("Details.Description")}: {book.Description}");
+            lines.Add($"{Strings.T("Details.Description")}: {book.Description}");
         else if (!DisplayText.IsMissing(book.Info))
-            lines.Add("" + Environment.NewLine + book.Info);
+            lines.Add(book.Info!);
 
-        MessageBox.Show(this, string.Join(Environment.NewLine, lines), Strings.T("Details.WindowTitle"),
-            MessageBoxButtons.OK, MessageBoxIcon.Information);
+        using var details = new BookDetailsForm(DisplayText.FirstReal(BookInfo.UnknownTitle, book.Title, book.BookId), lines);
+        details.ShowDialog(this);
     }
 
     /// <summary>The next book of the same series in the list, if there is one.</summary>
@@ -1057,47 +925,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
                                 b.SeriesPosition > book.SeriesPosition)
                     .OrderBy(b => b.SeriesPosition)
                     .FirstOrDefault();
-
-    // ------------------------------------------------------------------
-    // the Audible store
-    // ------------------------------------------------------------------
-
-    /// <summary>Opens the selected book's page in the Audible store. Ctrl + Shift + S.</summary>
-    private void OpenStorePage()
-    {
-        if (!IsAudible(providerCombo.SelectedItem as IBookProvider) || libraryList.SelectedItem is not BookInfo book)
-        {
-            SetStatus(Strings.T("Store.ChooseAudible"));
-            return;
-        }
-
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-        {
-            FileName = _audible.StorePageUrl(book.BookId),
-            UseShellExecute = true,
-        });
-        SetStatus(string.Format(Strings.T("Store.Opened"), book.Title));
-    }
-
-    private async Task ChangeWishlistAsync(bool add)
-    {
-        if (!IsAudible(providerCombo.SelectedItem as IBookProvider) || libraryList.SelectedItem is not BookInfo book)
-        {
-            SetStatus(Strings.T("Store.ChooseAudible"));
-            return;
-        }
-
-        if (add)
-            await _audible.AddToWishlistAsync(book.BookId);
-        else
-            await _audible.RemoveFromWishlistAsync(book.BookId);
-
-        SetStatus(string.Format(Strings.T(add ? "Store.WishAdded" : "Store.WishRemoved"), book.Title));
-
-        // The wishlist on screen follows the change.
-        if (providerCombo.SelectedItem is AudibleStoreProvider && string.IsNullOrWhiteSpace(searchBox.Text))
-            await LoadBooksAsync();
-    }
 
     // ------------------------------------------------------------------
     // backup and listening statistics
@@ -1170,12 +997,7 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         string? path = null;
         string title;
 
-        if (ActiveControl == queueList && queueList.SelectedItem is QueueItem { Status: QueueStatus.Completed } done)
-        {
-            path = done.OutputFile;
-            title = done.Book.Title;
-        }
-        else if (libraryList.SelectedItem is BookInfo book)
+        if (libraryList.SelectedItem is BookInfo book)
         {
             path = DownloadManager.FindExistingDownload(_settings, book);
             title = book.Title;
@@ -1410,115 +1232,20 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         SetStatus(Strings.T("Main.Cancelling"));
     }
 
-    /// <summary>Retry the selected failed or cancelled queue item. Ctrl + R, or the queue's menu.</summary>
-    private void RetrySelectedQueueItem()
-    {
-        if (queueList.SelectedItem is not QueueItem item)
-        {
-            SetStatus(Strings.T("Main.SelectFailedFirst"));
-            return;
-        }
-        if (item.Status is not (QueueStatus.Failed or QueueStatus.Cancelled))
-        {
-            SetStatus(Strings.T("Main.OnlyFailedRetry"));
-            return;
-        }
-        _queue.Retry(item);
-        SetStatus(string.Format(Strings.T("Main.Retrying"), item.Book.Title));
-    }
-
-    /// <summary>Remove the selected item that has not started. Ctrl + Delete, or the queue's menu.</summary>
-    private void RemoveSelectedQueueItem()
-    {
-        if (queueList.SelectedItem is not QueueItem item)
-        {
-            SetStatus(Strings.T("Main.SelectPendingFirst"));
-            return;
-        }
-        if (item.Status is not (QueueStatus.Pending or QueueStatus.Failed))
-        {
-            SetStatus(Strings.T("Main.OnlyPendingRemove"));
-            return;
-        }
-
-        if (_settings.ConfirmBeforeQueueRemoval)
-        {
-            // MessageBox is announced automatically by NVDA; the wording makes clear
-            // what will happen and that nothing is lost.
-            var choice = MessageBox.Show(
-                this,
-                string.Format(Strings.T("Main.RemoveConfirm"), item.Book.Title),
-                Strings.T("Main.RemoveConfirmTitle"),
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question,
-                MessageBoxDefaultButton.Button1);
-
-            if (choice != DialogResult.Yes)
-            {
-                SetStatus(Strings.T("Main.RemovalCancelled"));
-                return;
-            }
-        }
-
-        _queue.Remove(item);
-        SetStatus(string.Format(Strings.T("Main.Removed"), item.Book.Title));
-    }
-
-    /// <summary>Clear the finished rows. Ctrl + Shift + Delete, or the queue's menu.</summary>
-    private void ClearFinishedQueueItems()
-    {
-        _queue.ClearFinished();
-        SetStatus(Strings.T("Main.FinishedCleared"));
-    }
-
-    private void queueList_SelectedIndexChanged(object? sender, EventArgs e) =>
-        UpdateQueueButtons();
-
-    /// <summary>
-    /// Enable Retry for failed/cancelled selections, Remove for pending ones.
-    /// </summary>
-    /// <remarks>
-    /// This greys out the queue's <em>menu</em> entries, not buttons on the window:
-    /// the actions live on the keyboard shortcuts and the queue's own menu, and a
-    /// disabled item is how a menu says "not for this row" without a control that is
-    /// there for no reason the rest of the time.
-    /// </remarks>
-    private void UpdateQueueButtons()
-    {
-        queueMenuRetry.Enabled = queueList.SelectedItem is QueueItem r &&
-                                 r.Status is QueueStatus.Failed or QueueStatus.Cancelled;
-        queueMenuRemove.Enabled = queueList.SelectedItem is QueueItem p &&
-                                  p.Status is QueueStatus.Pending or QueueStatus.Failed;
-        queueMenuClearFinished.Enabled =
-            _queue.Items.Any(i => i.Status is QueueStatus.Completed or QueueStatus.Cancelled);
-    }
-
     private void OnQueueChanged()
     {
-        if (!IsHandleCreated)
+        if (!IsHandleCreated || Interlocked.Exchange(ref _queueChangePending, 1) == 1)
             return;
 
         BeginInvoke(() =>
         {
-            _queueBinding.DataSource = null;
-            _queueBinding.DataSource = _queue.Items;
-            _queueBinding.ResetBindings(false);
+            Interlocked.Exchange(ref _queueChangePending, 0);
 
             cancelButton.Enabled = _queue.Items.Any(i => i.Status == QueueStatus.Active);
-            UpdateQueueButtons();
 
             var active = _queue.Items.FirstOrDefault(i => i.Status == QueueStatus.Active);
             UpdateProgress(active);
-
-            var done = _queue.Items.Count(i => i.Status == QueueStatus.Completed);
-            var failed = _queue.Items.Count(i => i.Status == QueueStatus.Failed);
-            var pending = _queue.Items.Count(i => i.Status == QueueStatus.Pending);
-
-            statusLabel.Text = _queue.IsRunning
-                ? string.Format(Strings.T("Main.QueueRunning"), done, failed)
-                : string.Format(Strings.T("Main.QueueIdle"), done, failed, pending);
-            if (_settings.AnnounceStatusChanges && !_queue.IsRunning)
-                statusLabel.Announce();
+            ReportFinishedDownloads();
 
             _lastAnnounced = active;
         });
@@ -1543,24 +1270,34 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         if (_lastAnnounced?.Id != active.Id)
             _lastProgressMilestone = -1;
 
-        var percent = (int)Math.Round(active.Percent);
-        progressBar.Value = Math.Clamp(percent, 0, 100);
+        var percent = Math.Clamp((int)Math.Round(active.Percent), 0, 100);
+        if (progressBar.Value != percent)
+            progressBar.Value = percent;
+
+        // A beep for every percent, the way NVDA sounds a progress bar. While the bar
+        // has focus NVDA beeps for it itself, so the app stays quiet then.
+        if (_settings.ProgressBeeps && !progressBar.Focused && _lastBeep != (active.Id, percent))
+        {
+            _lastBeep = (active.Id, percent);
+            Sounds.ProgressBeep(percent);
+        }
 
         // The progress live region shows where the active download has got to.
         // Changing its text alone says nothing to a screen reader; only the
         // milestones below announce, so progress never chatters.
-        progressStatus.Text = string.Format(
-            Strings.T("Main.ProgressStatusText"), active.Book.Title, percent);
+        var text = string.Format(Strings.T("Main.ProgressStatusText"), active.Book.Title, percent);
+        if (progressStatus.Text != text)
+            progressStatus.Text = text;
 
         if (!_settings.AnnounceProgress)
             return;
 
-        var milestone = percent / 25 * 25;
-        if (milestone >= 25 && milestone != _lastProgressMilestone && percent >= milestone)
+        // The percentage every 10 percent; the book's name only when it starts.
+        var milestone = percent / 10 * 10;
+        if (milestone >= 10 && milestone != _lastProgressMilestone && percent >= milestone)
         {
             _lastProgressMilestone = milestone;
-            AnnounceProgress(string.Format(Strings.T("Main.ProgressAnnouncement"),
-                active.Book.Title, milestone));
+            AnnounceProgress(string.Format(Strings.T("Main.ProgressPercent"), milestone));
         }
         else if (_lastAnnounced?.Id != active.Id)
         {
@@ -1569,59 +1306,57 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         }
     }
 
+    /// <summary>
+    /// Each book that has just finished is reported once: a success gets the success
+    /// sound and is named, and its row in the book list now says "already
+    /// downloaded"; a failure is announced with its reason. Nothing else on the
+    /// window changes, so the screen reader is not given a whole list to re-read.
+    /// </summary>
+    private void ReportFinishedDownloads()
+    {
+        foreach (var item in _queue.Items.Where(i => i.Status is QueueStatus.Completed or QueueStatus.Failed))
+        {
+            if (!_finishedDownloads.Add(item.Id))
+                continue;
+
+            if (item.Status == QueueStatus.Completed)
+            {
+                AnnounceDownloaded(item.Book.Title);
+                MarkOneDownloaded(item.Book.BookId);
+            }
+            else
+            {
+                var message = string.Format(Strings.T("Main.BookFailed"), item.Book.Title, item.Error);
+                statusLabel.Text = message;
+                ScreenReader.RaiseAlert(statusLabel);
+            }
+        }
+    }
+
+    /// <summary>Marks one finished book in the list, touching only its own row.</summary>
+    private void MarkOneDownloaded(string bookId)
+    {
+        var found = _found.FindIndex(b => b.BookId == bookId);
+        if (found < 0)
+            return;
+        _found[found] = MarkDownloaded(_found[found]);
+
+        if (_settings.HideDownloaded)
+        {
+            RefreshDownloadedMarks();
+            return;
+        }
+
+        var shown = _books.FindIndex(b => b.BookId == bookId);
+        if (shown < 0)
+            return;
+        _books[shown] = _found[found];
+        _booksBinding.ResetItem(shown);
+    }
+
     // ------------------------------------------------------------------
     // completion notification
     // ------------------------------------------------------------------
-
-    /// <summary>
-    /// A dismissible strip shown at the top of the window when every queued
-    /// download has finished. Uses system Info colours and is fully announced.
-    /// </summary>
-    private void BuildNotificationPanel()
-    {
-        _notifyPanel = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = 46,
-            BackColor = SystemTheme.NoticeBackground,
-            Visible = false,
-            AccessibleName = Strings.T("Main.Notification"),
-            AccessibleRole = AccessibleRole.Alert,
-        };
-
-        _notifyLabel = new Label
-        {
-            Text = "",
-            AutoSize = true,
-            Location = new Point(10, 13),
-            ForeColor = SystemTheme.NoticeText,
-            AccessibleName = Strings.T("Main.NotificationMessage"),
-            AccessibleRole = AccessibleRole.StaticText,
-        };
-        _notifyPanel.Controls.Add(_notifyLabel);
-
-        _notifyDismiss = new Button
-        {
-            Text = Strings.T("Main.GotIt"),
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Location = new Point(770, 10),
-            Size = new Size(90, 28),
-            AccessibleName = Strings.Plain(Strings.T("Main.GotIt")),
-            AccessibleRole = AccessibleRole.PushButton,
-        };
-        _notifyDismiss.Click += (_, _) =>
-        {
-            _notifyPanel.Visible = false;
-            queueList.Focus();
-        };
-        _notifyPanel.Controls.Add(_notifyDismiss);
-
-        Controls.Add(_notifyPanel);
-        // Docked below the menu bar: the menu is docked first, then this strip,
-        // then the table fills whatever is left.
-        Controls.SetChildIndex(_notifyPanel, 1);
-        _notifyPanel.Visible = false;
-    }
 
     private void OnQueueFinished(QueueFinishedSummary summary)
     {
@@ -1635,47 +1370,54 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
                 : string.Format(Strings.T("Main.AllFinishedMixed"),
                     summary.Completed, summary.Failed, summary.Cancelled);
 
-            _notifyLabel.Text = message;
-            _notifyPanel.Visible = true;
             Log.Info(message);
-            SetStatus(message);
-            ScreenReader.RaiseAlert(_notifyPanel);
+            progressBar.Value = 0;
+            progressStatus.Text = string.Empty;
 
-            if (_settings.ToastWhenFinished)
-                ShowFinishToast(message);
+            // Only a batch of several books is summed up; one book was already named.
+            if (summary.Completed + summary.Failed + summary.Cancelled > 1)
+                SetStatus(message);
+
+            // Back to the book list, where the next book is chosen.
+            if (progressBar.Focused || cancelButton.Focused)
+                libraryList.Focus();
 
             if (_settings.OpenFolderWhenFinished)
                 OpenDownloadFolder();
 
-            // Books that just finished now read "already downloaded" in the list.
-            RefreshDownloadedMarks();
+            // Nothing is kept: the next Download starts from an empty list.
+            foreach (var item in _queue.Items.Where(i => i.Status == QueueStatus.Failed).ToList())
+                _queue.Remove(item);
+            _queue.ClearFinished();
         });
     }
 
     /// <summary>
-    /// Windows notification-center toast, in addition to the in-app strip.
-    /// Skipped while the window itself has focus (the strip is already on screen).
-    /// Falls back to a message box on systems without Action Center support.
+    /// A book has downloaded: "Download successful" is said through the screen
+    /// reader, and a Windows notification appears with Windows' own notification
+    /// sound. Where Windows cannot show notifications, its standard sound plays instead.
     /// </summary>
-    private void ShowFinishToast(string message)
+    private void AnnounceDownloaded(string title)
     {
-        if (ActiveForm == this)
+        var message = string.Format(Strings.T("Main.BookDownloaded"), title);
+        progressStatus.Text = message;
+        progressStatus.Announce();
+
+        if (!_settings.NotifyEachDownload)
             return;
 
         try
         {
-            // No IsSupported() in 7.1.3 — on systems without Action Center
-            // support this throws and the catch below shows a message box.
+            // No audio element: Windows plays its default notification sound.
             new ToastContentBuilder()
-                .AddText(Strings.T("App.Title"))
+                .AddText(Strings.T("Notify.Title"))
                 .AddText(message)
                 .Show();
         }
         catch (Exception ex)
         {
-            Log.Warn($"Toast notification unavailable ({ex.Message}); showing a message box instead.");
-            MessageBox.Show(this, message, Strings.T("Main.AllFinishedTitle"),
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Log.Warn($"Windows notification unavailable ({ex.Message}); playing the system sound instead.");
+            System.Media.SystemSounds.Asterisk.Play();
         }
     }
 
@@ -1700,7 +1442,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     private async Task OpenSettingsAsync(int section)
     {
         var previous = ActiveControl;
-        var drmWasOn = _settings.DrmRemovalEnabled;
 
         using (var dialog = new SettingsForm(_settings, _audible, section))
         {
@@ -1709,7 +1450,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         }
 
         ApplyLocalization();
-        ApplyAccessibilityPreferences();
         _settings.Save();
 
         if (previous is { CanSelect: true } && previous.Visible)
@@ -1718,50 +1458,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
             providerCombo.Focus();
 
         await OnProviderChangedAsync();
-
-        // Just switched on: offer to unlock the books that were saved with their DRM.
-        if (!drmWasOn && _settings.DrmRemovalEnabled)
-            RemoveDrmFromDownloads(askFirst: true);
-    }
-
-    /// <summary>
-    /// Queues every encrypted Audible book in the download folder whose keys are
-    /// known, to have its DRM removed. Nothing is downloaded again.
-    /// </summary>
-    private void RemoveDrmFromDownloads(bool askFirst)
-    {
-        if (!_settings.DrmRemovalEnabled)
-        {
-            SetStatus(Strings.T("Drm.TurnOnFirst"));
-            return;
-        }
-
-        var files = DownloadManager.FindEncryptedDownloads(_settings)
-            .Where(f => !_queue.Items.Any(i => i.Book.BookId == f && i.Status is QueueStatus.Pending or QueueStatus.Active))
-            .ToList();
-
-        if (files.Count == 0)
-        {
-            if (!askFirst)
-                SetStatus(Strings.T("Drm.NoneLeft"));
-            return;
-        }
-
-        var answer = MessageBox.Show(this, string.Format(Strings.T("Drm.ConvertExisting"), files.Count),
-            Strings.T("Drm.ConvertTitle"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-        if (answer != DialogResult.Yes)
-            return;
-
-        if (ProviderRegistry.Find(LocalFilesProvider.ProviderId) is not { } local)
-            return;
-
-        foreach (var file in files)
-            _queue.Enqueue(local, new BookInfo(LocalFilesProvider.ProviderId, file,
-                Path.GetFileNameWithoutExtension(file), "", "", 0, null, new Uri(file).AbsoluteUri,
-                Path.GetExtension(file).ToUpperInvariant()));
-        _queue.Start();
-
-        SetStatus(string.Format(Strings.T("Drm.Queued"), files.Count));
     }
 
     /// <summary>
@@ -1855,18 +1551,6 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         ShowKeyboardHelp();
     }
 
-    /// <summary>
-    /// The decryption-key explanation, which used to be a button on the window and is
-    /// now on the Help menu and on Ctrl + K.
-    /// </summary>
-    private void ShowDecryptionKeyHelp()
-    {
-        MessageBox.Show(this,
-            Strings.T("Audible.KeysHelpText"),
-            Strings.T("Main.Keys"),
-            MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
-
     private void OpenDownloadFolder()
     {
         try
@@ -1938,20 +1622,8 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
     private static readonly Dictionary<ShortcutAction, Action<MainForm>> _windowActions = new()
     {
         [ShortcutAction.Quit] = form => form.Close(),
-        [ShortcutAction.ToggleActivityLog] = form => form.ToggleActivityLog(),
-        [ShortcutAction.GoToActivityLog] = form => form.ShowActivityLog(),
-        [ShortcutAction.RetryQueueItem] = form => form.RetrySelectedQueueItem(),
-        [ShortcutAction.RemoveQueueItem] = form => form.RemoveSelectedQueueItem(),
-        [ShortcutAction.ClearFinishedItems] = form => form.ClearFinishedQueueItems(),
-        [ShortcutAction.BookLanguage] = form =>
-        {
-            // the book-language list, when the current provider supports languages
-            if (form.languageCombo.Visible)
-                form.languageCombo.Focus();
-        },
         [ShortcutAction.BookDetails] = form => form.ShowBookDetails(),
         [ShortcutAction.ShowBookFile] = form => form.ShowBookFile(),
-        [ShortcutAction.StorePage] = form => form.OpenStorePage(),
         [ShortcutAction.SearchHistory] = form =>
         {
             // the search-history dropdown, from anywhere on the form
@@ -2049,19 +1721,4 @@ public partial class MainForm : Form, IKeyPrompt, IAudibleSignInWindow
         progressStatus.Announce();
     }
 
-    private void OnLogMessage(string line)
-    {
-        if (IsHandleCreated)
-            BeginInvoke(() => logBox.AppendText(line + Environment.NewLine));
-    }
-
-    // ------------------------------------------------------------------
-    // IKeyPrompt (for local AAX/AAXC files)
-    // ------------------------------------------------------------------
-
-    public CachedKeys? Prompt(string fileName, bool askKeyIv, bool askActivationBytes)
-    {
-        using var dialog = new KeyPromptForm(fileName, askKeyIv, askActivationBytes);
-        return dialog.ShowDialog(this) == DialogResult.OK ? dialog.ResultKeys : null;
-    }
 }

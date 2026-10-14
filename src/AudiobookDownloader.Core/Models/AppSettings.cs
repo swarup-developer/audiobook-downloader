@@ -3,9 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace AudiobookDownloader.Core;
 
-/// <summary>Decryption keys remembered for one local file so the user is not asked twice.</summary>
-public sealed record CachedKeys(string? FileName, string? Key, string? Iv, string? ActivationBytes);
-
 /// <summary>
 /// Everything the user can configure. Grouped the same way the Settings dialog
 /// presents it: application, downloads, Audible account, Project Gutenberg,
@@ -42,22 +39,24 @@ public sealed class AppSettings
     // Application
     // ---------------------------------------------------------------------
 
-    /// <summary>Default save location: the user's Desktop, as requested.</summary>
-    public string OutputFolder { get; set; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-        "Audiobooks");
+    /// <summary>Where books are saved. Until one is chosen: "Book Download" in the Downloads folder.</summary>
+    public string OutputFolder { get; set; } = DefaultOutputFolder;
 
-    /// <summary>Folder scanned by the "Local files" provider for AAX/AAXC files.</summary>
-    public string LocalFolder { get; set; } = "";
+    /// <summary>"Book Download" inside the person's own Downloads folder, wherever Windows keeps it.</summary>
+    public static string DefaultOutputFolder => Path.Combine(KnownFolders.Downloads, "Book Download");
 
-    /// <summary>Show a Windows notification-center toast when the queue finishes.</summary>
-    public bool ToastWhenFinished { get; set; } = false;
+    /// <summary>The default of earlier versions, which is moved to the new default on loading.</summary>
+    private static string OldDefaultOutputFolder => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Audiobooks");
 
-    /// <summary>Open the download folder when the whole queue has finished.</summary>
+    /// <summary>
+    /// A Windows notification, with Windows' own notification sound, for every book
+    /// that has downloaded. On unless it is turned off.
+    /// </summary>
+    public bool NotifyEachDownload { get; set; } = true;
+
+    /// <summary>Open the download folder when downloads have finished.</summary>
     public bool OpenFolderWhenFinished { get; set; } = false;
-
-    /// <summary>Ask before removing a pending item from the queue.</summary>
-    public bool ConfirmBeforeQueueRemoval { get; set; } = true;
 
     /// <summary>Remember the provider that was selected when the app last closed.</summary>
     public bool RememberLastProvider { get; set; } = true;
@@ -69,22 +68,6 @@ public sealed class AppSettings
     // Downloads
     // ---------------------------------------------------------------------
 
-    /// <summary>
-    /// Remove DRM from Audible books. Off until the person turns it on in Settings
-    /// and accepts the personal-use notice; see <see cref="DrmRemovalEnabled"/>.
-    /// </summary>
-    public bool RemoveDrm { get; set; } = false;
-
-    /// <summary>True once the personal-use notice for DRM removal has been accepted.</summary>
-    public bool DrmRemovalConsented { get; set; } = false;
-
-    /// <summary>
-    /// Whether DRM is actually removed: only when it is switched on <em>and</em> the
-    /// notice was accepted. A settings file from an older version that had it on
-    /// without that consent leaves Audible books encrypted until it is confirmed.
-    /// </summary>
-    [JsonIgnore]
-    public bool DrmRemovalEnabled => RemoveDrm && DrmRemovalConsented;
     public bool DeleteIntermediateFile { get; set; } = true;
 
     /// <summary>Save each book in a folder named after its author, inside the download folder.</summary>
@@ -235,11 +218,11 @@ public sealed class AppSettings
     /// <summary>Announce download progress milestones through the screen reader.</summary>
     public bool AnnounceProgress { get; set; } = true;
 
-    /// <summary>Keep the activity log panel on screen at all times.</summary>
-    public bool KeepActivityLogVisible { get; set; } = true;
+    /// <summary>Beep for every percent a download moves on, pitched like NVDA's progress bars.</summary>
+    public bool ProgressBeeps { get; set; } = true;
 
     // ---------------------------------------------------------------------
-    // Search history / key cache (not shown in Settings)
+    // Search history (not shown in Settings)
     // ---------------------------------------------------------------------
 
     /// <summary>Recent search text per provider id, newest first, for the search-box dropdown.</summary>
@@ -266,8 +249,6 @@ public sealed class AppSettings
         Save();
     }
 
-    public List<CachedKeys> KeyCache { get; set; } = [];
-
     private static string Folder => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "AudiobookDownloader");
@@ -288,7 +269,17 @@ public sealed class AppSettings
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new AppSettings();
+            {
+                var loaded = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new AppSettings();
+
+                // No folder chosen (empty, or the old Desktop default never changed):
+                // books go to "Book Download" in the Downloads folder.
+                if (string.IsNullOrWhiteSpace(loaded.OutputFolder) ||
+                    string.Equals(Path.TrimEndingDirectorySeparator(loaded.OutputFolder.Trim()), OldDefaultOutputFolder,
+                        StringComparison.OrdinalIgnoreCase))
+                    loaded.OutputFolder = DefaultOutputFolder;
+                return loaded;
+            }
         }
         catch (Exception ex)
         {
@@ -309,25 +300,5 @@ public sealed class AppSettings
         {
             Log.Warn($"Settings could not be saved: {ex.Message}");
         }
-    }
-
-    public CachedKeys? FindKeys(string fileName) =>
-        KeyCache.FirstOrDefault(k => string.Equals(k.FileName, fileName, StringComparison.OrdinalIgnoreCase));
-
-    private static readonly object KeyGate = new();
-
-    public void CacheKeys(string fileName, CachedKeys keys)
-    {
-        lock (KeyGate)
-        {
-            CacheKeysUnlocked(fileName, keys);
-        }
-    }
-
-    private void CacheKeysUnlocked(string fileName, CachedKeys keys)
-    {
-        KeyCache.RemoveAll(k => string.Equals(k.FileName, fileName, StringComparison.OrdinalIgnoreCase));
-        KeyCache.Add(keys with { FileName = fileName });
-        Save();
     }
 }

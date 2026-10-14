@@ -12,8 +12,7 @@ its own.
 
 > **Personal use only.** The Audible part of this app is for books you have bought.
 > Audible only issues download licences for books in your own library, and this app
-> does not get around that. DRM removal is off until you turn it on yourself. Do not
-> share decrypted files.
+> does not get around that. Do not share decrypted files.
 
 ## Contents
 
@@ -44,16 +43,20 @@ its own.
   automatically when the app starts, with no button to press.
 - **Several Audible accounts.** Sign in to more than one (for example an Indian and
   an American account) and switch between them in Settings.
-- **The Audible store and your wishlist.** Search everything Audible sells, see your
-  wishlist, add or remove books, and open a book's store page to buy it.
 - **New purchases download themselves** (optional). When the app starts, books you
-  bought since the last time are added to the download queue.
-- **DRM removal you choose.** Off by default. Turn it on in Settings and every
-  Audible book is fully decrypted on your own computer, checked, and saved as an
-  ordinary M4B or MP3 file. Books downloaded earlier with their DRM can be unlocked
-  later without downloading them again.
-- **M4B or MP3, whole or by chapter.** Save one lossless M4B with chapters, one MP3,
-  or one file per chapter in a folder of its own.
+  bought since the last time are downloaded.
+- **DRM removed automatically.** Every Audible book is fully decrypted on your own
+  computer, checked, and saved as an ordinary M4B or MP3 file. A book you have not
+  bought (an Audible Plus title) gets a notice first, and is only downloaded if you
+  accept it.
+- **Progress you can hear.** A beep for every percent, pitched like NVDA's progress
+  bars, and the percentage read out every 10 percent. When a book has downloaded,
+  "Download successful" is read out and a Windows notification appears with Windows'
+  own notification sound.
+- **Choose the format each time.** Download asks which format: one lossless M4B with
+  chapters, one MP3, or one M4B or MP3 file per chapter in a folder of its own (for
+  Project Gutenberg: audio, EPUB, HTML or plain text). The last choice is selected next
+  time.
 - **Book details inside the file.** The description, series, narrator and cover are
   written into the file, so any player shows them. The cover can also be saved as a
   picture next to the book.
@@ -79,8 +82,8 @@ its own.
 - **Automatic backup.** Every finished book can be copied to a second folder as well.
   Choose a folder inside OneDrive and it is uploaded to the cloud by OneDrive.
 - **Nothing gets lost.** A download never overwrites an existing file. An interrupted
-  transfer resumes where it stopped, a dropped connection is retried automatically,
-  and the queue survives closing the app.
+  transfer resumes where it stopped, and a dropped connection is retried
+  automatically.
 - **Export your list** to a CSV file that opens in Excel.
 - **Seven interface languages:** English, Hindi, Spanish, Bengali, Marathi, Tamil and
   Urdu (shown right to left).
@@ -111,47 +114,56 @@ added to the repository; see [Making a release](#making-a-release).)
 
 The main window has three groups, from top to bottom:
 
-1. **Find books**: choose a source, search, and pick books from the list.
-2. **Downloads**: Download selected, Cancel active, the progress bar and the download
-   queue.
-3. **Status**: the status line, which your screen reader announces, and the activity
-   log.
+1. **Books**: the download provider, the search box and the list of books.
+2. **Download**: the Download and Cancel download buttons, and the progress bar.
+3. **Status**: the status line, which your screen reader announces.
+
+Pressing Download first asks for the **format**: choose it in the list and press
+Enter (or **Download now**); Escape cancels. Focus then moves to the progress bar, so
+your screen reader follows the download (NVDA beeps for it as it moves). When a book
+has downloaded, "Download successful" is read out and a Windows notification appears
+with its sound; if it fails, the reason is read out. Focus then goes back to the book
+list.
+
+Each book in the list has a context menu (Applications key or Shift+F10) with
+**Download**, **Play** and **Book details**. Book details opens as text you read line
+by line with the Up and Down arrows; Escape closes it.
 
 The menu bar (press Alt) has three menus: **Application**, **View** and **Help**.
 
 ### Download your Audible books
 
-1. In **Provider**, choose "Audible (your library)".
+1. In **Download provider**, choose "Audible (your library)".
 2. Press **Sign in to Audible** (Alt+I), right next to the provider list.
 3. Choose your country. Use the Up and Down arrows, or type the first letters of
    its name: "ind" finds India. Press Enter.
 4. Amazon's own sign-in page opens inside the app. Sign in as usual. The window
    closes by itself when Amazon has accepted the sign-in.
 5. Your library appears in the list. Select one or more books and press Enter or
-   **Download selected** (Alt+D).
+   **Download** (Alt+D).
 
-Downloaded books are saved to `Desktop\Audiobooks` unless you change it in
-Settings. Next time you start the app you are already signed in. To sign out, press
+Downloaded books are saved in a folder called **Book Download** inside your Downloads
+folder, unless you choose another folder in Settings, General. The folder is made
+when the first book is saved. Next time you start the app you are already signed in. To sign out, press
 the same button, which now reads **Sign out of Audible**.
 
 ### Download free books
 
-1. In **Provider**, choose LibriVox, Internet Archive or Project Gutenberg. No
-   account is needed.
+1. In **Download provider**, choose LibriVox, Internet Archive or Project Gutenberg.
+   No account is needed.
 2. Type what you are looking for in **Search books** and press Enter.
-3. Optionally choose a **Book language** (Alt+U).
-4. Select books and press Enter.
+3. Select books and press Enter.
+
+The language of the books each source lists is chosen in Settings, Language.
 
 ## Book sources
 
 | Source | What you get | Account | Format |
 |--------|--------------|---------|--------|
-| Audible (your library) | Books and podcast episodes you own | Amazon account | `.aaxc` as downloaded, or DRM-free `.m4b` / `.mp3` when DRM removal is on |
-| Audible store | Search the whole store; an empty search shows your wishlist | Amazon account | Books you own download as above; others open in the store |
+| Audible (your library) | Books and podcast episodes in your library | Amazon account | DRM-free `.m4b` / `.mp3` |
 | LibriVox | Over 20,000 free public-domain audiobooks read by volunteers | None | `.zip` of MP3 chapters |
 | Internet Archive | Free audio collections, most popular first | None | `.zip` of the item's files |
 | Project Gutenberg | Over 70,000 free public-domain books | None | EPUB, HTML, text or MP3 |
-| Local files | Your own `.aax` and `.aaxc` files | None | DRM-free `.m4b` / `.mp3` |
 
 The first LibriVox search reads the whole catalogue once (about 20 seconds) and keeps
 it for a week, so later searches are instant.
@@ -159,7 +171,6 @@ it for a week, so later searches are instant.
 ## The player
 
 Select a downloaded book and press **Ctrl+P** (or Application, Play selected book).
-A finished row of the download queue can be played the same way.
 
 A chapter is either a file in a folder of chapter files or a chapter inside a single
 M4B; the player moves between them the same way and says each chapter's name when it
@@ -190,28 +201,20 @@ last 7 and 30 days and in total, your streak of days, and the books finished.
 
 ## Removing DRM
 
-DRM removal is **off** until you turn it on. While it is off, Audible books are saved
-exactly as Audible sends them (`.aaxc`), and the keys that unlock them are remembered.
+There is nothing to turn on: every Audible book you download has its DRM removed.
 
-To turn it on, open Settings (Ctrl+,), go to **Downloads** and tick **Remove DRM from
-Audible books**. The app explains what this means and asks you to confirm that you
-will only use it for books you own, for your own backup.
-
-With it on:
-
-- Every Audible book is decrypted on your computer. Nothing is sent anywhere.
+- Each book is decrypted on your computer with the key Audible issues with its
+  download licence. Nothing is sent anywhere.
 - The result is checked: it must play for as long as the original. A copy that falls
   short is discarded and the encrypted original is kept.
-- The app offers to unlock the Audible books that are already in your download folder
-  with their DRM. You can do the same any time from Application, **Remove DRM from
-  downloaded books**.
 - The encrypted original is deleted after a successful decryption, unless you turn
-  that off.
-
-| Format | What unlocks it | Result |
-|--------|-----------------|--------|
-| AAXC (current Audible files) | A key and IV issued with each download licence | Lossless `.m4b`, or `.mp3` |
-| AAX (older Audible files) | Your account's activation bytes | Lossless `.m4b`, or `.mp3` |
+  that off in Settings, Downloads.
+- **Books you have not bought.** A title that is in your library only through your
+  membership (Audible Plus) is not yours. Before downloading one, the app tells you
+  so: removing DRM from a book you have not bought may be illegal in your country, and
+  if you go ahead it is entirely your own responsibility; the developer is not
+  responsible for anything that may happen to you because of it. Choose No (the
+  default) and those books are left out.
 
 Decryption uses [AAXClean](https://github.com/Mbucari/AAXClean) and does not need
 ffmpeg. Removing DRM may not be allowed where you live; you are responsible for using
@@ -230,51 +233,45 @@ Press F1 at any time for the full list in your own language.
 | Ctrl+P | Play the selected book |
 | Ctrl+O | Open the download folder |
 | Ctrl+E | Export the book list to a CSV file |
-| Ctrl+K | How to get decryption keys for AAX and AAXC files |
 | Ctrl+1, Ctrl+2, Ctrl+3, Ctrl+4, Ctrl+5 | Sort by title, author, length, date added, series |
 | Ctrl+Shift+T | Listening statistics |
-| Ctrl+Shift+S | Open the selected Audible book in the Audible store |
 | Ctrl+H | Hide or show books already downloaded |
 | Ctrl+Q or Alt+F4 | Quit |
-| Alt+P | Go to the provider list |
+| Alt+P | Go to the download provider list |
 | Alt+I | Sign in to Audible |
 | Alt+S | Go to the search box |
 | Alt+Down | Open your previous searches |
-| Alt+U | Go to the book language list |
 | Alt+B | Go to the book list |
 | Enter in the book list | Download the selected books |
 | Ctrl+A in the book list | Select every book |
 | Ctrl+I | Details of the selected book |
 | Ctrl+Shift+O | Show the selected book's file in File Explorer |
-| Alt+D | Download selected |
-| Ctrl+R | Retry the selected failed or cancelled download |
-| Ctrl+Delete | Remove a download that has not started |
-| Ctrl+Shift+Delete | Clear finished downloads |
-| Ctrl+L | Show or hide the activity log |
-| Alt+L | Go to the activity log |
+| Alt+D | Download the selected books |
+| Alt+C | Cancel the download |
 
-The book list has a context menu (Applications key or Shift+F10) with Play, Book
-details, Open in the Audible store, Add to wishlist and Remove from wishlist. The
-download queue has one with Retry, Remove and Clear finished.
+The book list has a context menu (Applications key or Shift+F10) with Download, Play
+and Book details.
 
 ## Settings
 
-Open Settings with Ctrl+, and move between its sections with Ctrl+Tab.
+Open Settings with Ctrl+, and move between its five tabs with Ctrl+Tab, or with the
+Left and Right arrows on the tabs (focus stays on the tabs). Each tab is made of named
+groups, which your screen reader names as you move into them.
 
-- **General:** download folder, folder for your own AAX/AAXC files, opening the folder
-  or showing a Windows notification when downloads finish, confirmations, and checking
-  for updates.
-- **Downloads:** DRM removal, deleting the encrypted original, M4B or MP3, one file
-  per chapter, writing the book's details into the file, saving the cover picture,
-  author folders, asking before downloading a book twice, backup folder, downloads at
-  the same time (1 to 4) and a speed limit.
-- **Audible account:** the account in use and adding another, sign in, sign out,
-  country, remembering the sign-in, loading the library after signing in, podcast
-  episodes, and downloading new purchases automatically.
-- **Project Gutenberg:** default language and preferred format.
-- **Language:** the language of the app itself.
-- **Accessibility:** which status changes, progress milestones and chapter names are
-  announced, and whether the activity log stays visible.
+- **General:** *Download folder*; *When downloads finish* (open the folder, a Windows
+  notification with its sound for each book); *Using the app* (remember the last
+  provider, check for updates).
+- **Downloads:** *Files and folders* (author folders, asking before downloading a
+  book twice, deleting the encrypted original, book details and cover inside the file,
+  cover picture beside it); *Backup*; *Speed* (downloads at the same time, speed
+  limit). The format is chosen each time you press Download.
+- **Audible:** *Account* (the account in use, country, sign in, sign out, add another
+  account, remember the sign-in); *Library* (load it after signing in, podcast
+  episodes, download new purchases automatically).
+- **Language:** *Language of the app*; *Language of the books listed*, one list each
+  for Audible, LibriVox and Project Gutenberg.
+- **Accessibility:** *Screen reader announcements* (status, progress percentages,
+  chapter names); *Sounds* (progress beeps).
 
 ## Interface languages
 
@@ -305,10 +302,9 @@ in a bug report.
   about you. It can be turned off in Settings, General.
 - The app has no analytics and sends nothing anywhere else except to the book sources
   you use.
-- Adding or removing a wishlist book changes your wishlist on Audible, as it would in
-  the Audible app. Nothing else is ever changed on your account.
-- Settings, the download queue, playback positions, bookmarks, listening statistics
-  and a log file are kept in `%AppData%\AudiobookDownloader`.
+- Nothing is ever changed on your Audible account.
+- Settings, playback positions, bookmarks, listening statistics and a log file are
+  kept in `%AppData%\AudiobookDownloader`.
 
 ## Troubleshooting
 
@@ -320,18 +316,14 @@ library (for example an Audible Plus title that was removed, or a returned book)
 it belongs to a different Audible country than the one you signed in to. Sign out and
 sign in again with the right country.
 
-**Audible books download as .aaxc files.** DRM removal is off. See
-[Removing DRM](#removing-drm).
-
-**A search finds nothing.** Check the Book language list: a language filter may be
-hiding results. Also check View, Hide books already downloaded (Ctrl+H). Project
+**A search finds nothing.** Check the source's book language in Settings, Language: a
+language filter may be hiding results. Also check View, Hide books already downloaded (Ctrl+H). Project
 Gutenberg has very few books in some languages, including Hindi.
 
-**Decryption failed.** For your own AAX or AAXC files, check the key and IV (32 hex
-digits each) or the activation bytes (8 hex digits). The encrypted original is always
-kept when decryption fails.
+**Decryption failed.** The encrypted original is always kept when decryption fails;
+select the book and press Download again.
 
-**Anything else.** The activity log (Alt+L) and the log file at
+**Anything else.** The log file at
 `%AppData%\AudiobookDownloader\log.txt` say what happened. Please include the relevant
 lines when you open an issue.
 
@@ -368,8 +360,8 @@ checks the following and exits with an error if anything is wrong:
 - the keyboard shortcut table against the menus and the help screen;
 - the country search in the sign-in, in every language;
 - the Audible sign-in redirect for every store;
-- the download engine: no overwrites, resuming, cancelling, the queue surviving a
-  restart, and recognising books that are already downloaded;
+- the download engine: no overwrites, resuming, cancelling, and recognising books
+  that are already downloaded;
 - the player: it really plays a file, remembers where it stopped and resumes there,
   records listening time, reads the chapters inside an M4B, and finds long silences;
 - the LibriVox catalogue reader.

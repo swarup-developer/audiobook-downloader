@@ -19,7 +19,6 @@ partial class MainForm
     private System.Windows.Forms.ToolStripMenuItem menuOpenFolder;
     private System.Windows.Forms.ToolStripMenuItem menuExport;
     private System.Windows.Forms.ToolStripMenuItem menuPlay;
-    private System.Windows.Forms.ToolStripMenuItem menuUnlock;
     private System.Windows.Forms.ToolStripMenuItem menuView;
     private System.Windows.Forms.ToolStripMenuItem menuSortTitle;
     private System.Windows.Forms.ToolStripMenuItem menuSortAuthor;
@@ -31,23 +30,19 @@ partial class MainForm
     private System.Windows.Forms.ToolStripSeparator menuAppSeparator;
     private System.Windows.Forms.ToolStripMenuItem menuExit;
     private System.Windows.Forms.ToolStripMenuItem menuHelp;
-    private System.Windows.Forms.ToolStripMenuItem menuKeys;
     private System.Windows.Forms.ToolStripMenuItem menuAbout;
     private System.Windows.Forms.ToolStripSeparator menuHelpSeparator;
     private System.Windows.Forms.ToolStripMenuItem menuShortcuts;
 
     // The window is laid out top to bottom in three numbered groups, so every
     // control has one obvious place:
-    //   1. Find books   — provider, search, (Project Gutenberg only) book
-    //                     language, and the book list.
-    //   2. Downloads    — the two actions the main job needs, the progress bar
-    //                     and the queue.
-    //   3. Status       — the status line and the activity log.
+    //   1. Books        — the download provider, search, and the book list.
+    //   2. Download     — Download, Cancel, and the progress bar.
+    //   3. Status       — the status line.
     //
     // Only the main job's actions are on the window. Everything else — Settings,
-    // the download folder, the decryption-key help, quitting — is on a shortcut and
-    // in the application menu, and the queue's own actions are on the queue list's
-    // context menu, so nothing is on screen merely because it exists.
+    // the download folder, quitting — is on a shortcut and in the application menu,
+    // and a book's own actions are on the book list's context menu.
     private System.Windows.Forms.TableLayoutPanel table;
 
     private System.Windows.Forms.GroupBox bookGroup;
@@ -61,9 +56,6 @@ partial class MainForm
     private System.Windows.Forms.Label searchLabel;
     private System.Windows.Forms.ComboBox searchBox;
     private System.Windows.Forms.Button searchButton;
-    private System.Windows.Forms.FlowLayoutPanel languageRow;
-    private System.Windows.Forms.Label languageLabel;
-    private System.Windows.Forms.ComboBox languageCombo;
     private System.Windows.Forms.FlowLayoutPanel libraryHeader;
     private System.Windows.Forms.Label libraryLabel;
     private System.Windows.Forms.Label libraryHint;
@@ -76,19 +68,12 @@ partial class MainForm
     private System.Windows.Forms.Button cancelButton;
     private System.Windows.Forms.FlowLayoutPanel progressRow;
     private System.Windows.Forms.Label progressLabel;
-    private System.Windows.Forms.ProgressBar progressBar;
+    private FocusableProgressBar progressBar;
     private LiveRegionLabel progressStatus;
-    private System.Windows.Forms.ListBox queueList;
-    private System.Windows.Forms.ContextMenuStrip queueMenu;
-    private System.Windows.Forms.ToolStripMenuItem queueMenuRetry;
-    private System.Windows.Forms.ToolStripMenuItem queueMenuRemove;
-    private System.Windows.Forms.ToolStripMenuItem queueMenuClearFinished;
-    private System.Windows.Forms.ToolStripSeparator queueMenuSeparator;
 
     private System.Windows.Forms.GroupBox statusGroup;
     private System.Windows.Forms.TableLayoutPanel statusLayout;
     private LiveRegionLabel statusLabel;
-    private System.Windows.Forms.TextBox logBox;
 
     private void InitializeComponent()
     {
@@ -101,7 +86,6 @@ partial class MainForm
         this.menuOpenFolder = new System.Windows.Forms.ToolStripMenuItem();
         this.menuExport = new System.Windows.Forms.ToolStripMenuItem();
         this.menuPlay = new System.Windows.Forms.ToolStripMenuItem();
-        this.menuUnlock = new System.Windows.Forms.ToolStripMenuItem();
         this.menuView = new System.Windows.Forms.ToolStripMenuItem();
         this.menuSortTitle = new System.Windows.Forms.ToolStripMenuItem();
         this.menuSortAuthor = new System.Windows.Forms.ToolStripMenuItem();
@@ -113,15 +97,9 @@ partial class MainForm
         this.menuAppSeparator = new System.Windows.Forms.ToolStripSeparator();
         this.menuExit = new System.Windows.Forms.ToolStripMenuItem();
         this.menuHelp = new System.Windows.Forms.ToolStripMenuItem();
-        this.menuKeys = new System.Windows.Forms.ToolStripMenuItem();
         this.menuAbout = new System.Windows.Forms.ToolStripMenuItem();
         this.menuHelpSeparator = new System.Windows.Forms.ToolStripSeparator();
         this.menuShortcuts = new System.Windows.Forms.ToolStripMenuItem();
-        this.queueMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
-        this.queueMenuRetry = new System.Windows.Forms.ToolStripMenuItem();
-        this.queueMenuRemove = new System.Windows.Forms.ToolStripMenuItem();
-        this.queueMenuClearFinished = new System.Windows.Forms.ToolStripMenuItem();
-        this.queueMenuSeparator = new System.Windows.Forms.ToolStripSeparator();
 
         this.table = new System.Windows.Forms.TableLayoutPanel();
 
@@ -136,9 +114,6 @@ partial class MainForm
         this.searchLabel = new System.Windows.Forms.Label();
         this.searchBox = new System.Windows.Forms.ComboBox();
         this.searchButton = new System.Windows.Forms.Button();
-        this.languageRow = new System.Windows.Forms.FlowLayoutPanel();
-        this.languageLabel = new System.Windows.Forms.Label();
-        this.languageCombo = new System.Windows.Forms.ComboBox();
         this.libraryHeader = new System.Windows.Forms.FlowLayoutPanel();
         this.libraryLabel = new System.Windows.Forms.Label();
         this.libraryHint = new System.Windows.Forms.Label();
@@ -151,14 +126,12 @@ partial class MainForm
         this.cancelButton = new System.Windows.Forms.Button();
         this.progressRow = new System.Windows.Forms.FlowLayoutPanel();
         this.progressLabel = new System.Windows.Forms.Label();
-        this.progressBar = new System.Windows.Forms.ProgressBar();
+        this.progressBar = new FocusableProgressBar();
         this.progressStatus = new LiveRegionLabel();
-        this.queueList = new System.Windows.Forms.ListBox();
 
         this.statusGroup = new System.Windows.Forms.GroupBox();
         this.statusLayout = new System.Windows.Forms.TableLayoutPanel();
         this.statusLabel = new LiveRegionLabel();
-        this.logBox = new System.Windows.Forms.TextBox();
 
         this.menuStrip.SuspendLayout();
         this.table.SuspendLayout();
@@ -166,7 +139,6 @@ partial class MainForm
         this.bookLayout.SuspendLayout();
         this.providerRow.SuspendLayout();
         this.searchRow.SuspendLayout();
-        this.languageRow.SuspendLayout();
         this.libraryHeader.SuspendLayout();
         this.queueGroup.SuspendLayout();
         this.queueLayout.SuspendLayout();
@@ -198,7 +170,6 @@ partial class MainForm
             this.menuRefresh,
             this.menuOpenFolder,
             this.menuExport,
-            this.menuUnlock,
             this.menuAppSeparator,
             this.menuExit,
         ]);
@@ -266,12 +237,6 @@ partial class MainForm
         this.menuHideDownloaded.AccessibleName = "Hide books already downloaded";
 
         //
-        // menuUnlock — remove DRM from encrypted books already downloaded
-        //
-        this.menuUnlock.Name = "menuUnlock";
-        this.menuUnlock.AccessibleName = "Remove DRM from downloaded books";
-
-        //
         // menuCheckUpdates
         //
         this.menuCheckUpdates.Name = "menuCheckUpdates";
@@ -301,19 +266,10 @@ partial class MainForm
         this.menuHelp.DropDownItems.AddRange(
         [
             this.menuShortcuts,
-            this.menuKeys,
             this.menuHelpSeparator,
             this.menuCheckUpdates,
             this.menuAbout,
         ]);
-
-        //
-        // menuKeys — "how to get the keys", which used to be a button on the window
-        //
-        this.menuKeys.Name = "menuKeys";
-        this.menuKeys.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.K;
-        this.menuKeys.ShowShortcutKeys = true;
-        this.menuKeys.AccessibleName = "How to get decryption keys";
 
         //
         // menuAbout
@@ -339,38 +295,36 @@ partial class MainForm
         this.table.Padding = new System.Windows.Forms.Padding(8);
         this.table.TabIndex = 1;
         this.table.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-        this.table.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 48F)); // find books
-        this.table.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 40F)); // downloads
+        this.table.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F)); // books
+        this.table.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));     // download
         this.table.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));     // status
         this.table.Controls.Add(this.bookGroup, 0, 0);
         this.table.Controls.Add(this.queueGroup, 0, 1);
         this.table.Controls.Add(this.statusGroup, 0, 2);
 
         //
-        // bookGroup — 1. Find books
+        // bookGroup — 1. Books
         //
         this.bookGroup.Dock = System.Windows.Forms.DockStyle.Fill;
         this.bookGroup.Padding = new System.Windows.Forms.Padding(8, 2, 8, 6);
-        this.bookGroup.Text = "1. Find books";
+        this.bookGroup.Text = "1. Books";
         this.bookGroup.Controls.Add(this.bookLayout);
 
         //
-        // bookLayout — provider, search, book language, book list, in order
+        // bookLayout — provider, search, book list, in order
         //
         this.bookLayout.ColumnCount = 1;
-        this.bookLayout.RowCount = 5;
+        this.bookLayout.RowCount = 4;
         this.bookLayout.Dock = System.Windows.Forms.DockStyle.Fill;
         this.bookLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
-        this.bookLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this.bookLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this.bookLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this.bookLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this.bookLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
         this.bookLayout.Controls.Add(this.providerRow, 0, 0);
         this.bookLayout.Controls.Add(this.searchRow, 0, 1);
-        this.bookLayout.Controls.Add(this.languageRow, 0, 2);
-        this.bookLayout.Controls.Add(this.libraryHeader, 0, 3);
-        this.bookLayout.Controls.Add(this.libraryList, 0, 4);
+        this.bookLayout.Controls.Add(this.libraryHeader, 0, 2);
+        this.bookLayout.Controls.Add(this.libraryList, 0, 3);
 
         //
         // providerRow
@@ -464,37 +418,6 @@ partial class MainForm
         this.searchButton.Click += searchButton_Click;
 
         //
-        // languageRow — "Book language". Shown only for Project Gutenberg, the one
-        // provider that can filter by language; the row collapses for the others.
-        //
-        this.languageRow.Name = "languageRow";
-        this.languageRow.Dock = System.Windows.Forms.DockStyle.Fill;
-        this.languageRow.AutoSize = true;
-        this.languageRow.WrapContents = true;
-        this.languageRow.Visible = false;
-        this.languageRow.Controls.Add(this.languageLabel);
-        this.languageRow.Controls.Add(this.languageCombo);
-
-        //
-        // languageLabel
-        //
-        this.languageLabel.AutoSize = true;
-        this.languageLabel.Text = "Book &language:";
-        this.languageLabel.Margin = new System.Windows.Forms.Padding(3, 9, 3, 3);
-        this.languageLabel.TabIndex = 6;
-
-        //
-        // languageCombo
-        //
-        this.languageCombo.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-        this.languageCombo.Width = 220;
-        this.languageCombo.TabIndex = 7;
-        this.languageCombo.Name = "languageCombo";
-        this.languageCombo.Margin = new System.Windows.Forms.Padding(3, 4, 3, 3);
-        this.languageCombo.AccessibleRole = System.Windows.Forms.AccessibleRole.ComboBox;
-        this.languageCombo.SelectedIndexChanged += languageCombo_SelectedIndexChanged;
-
-        //
         // libraryHeader — the caption and the inline hint for the book list
         //
         this.libraryHeader.Name = "libraryHeader";
@@ -534,32 +457,31 @@ partial class MainForm
         this.libraryList.KeyDown += libraryList_KeyDown;
 
         //
-        // queueGroup — 2. Downloads
+        // queueGroup — 2. Download
         //
         this.queueGroup.Dock = System.Windows.Forms.DockStyle.Fill;
+        this.queueGroup.AutoSize = true;
         this.queueGroup.Padding = new System.Windows.Forms.Padding(8, 2, 8, 6);
         this.queueGroup.Text = "2. Downloads";
         this.queueGroup.Controls.Add(this.queueLayout);
 
         //
-        // queueLayout — actions, progress, queue, in order
+        // queueLayout — actions, then progress
         //
         this.queueLayout.ColumnCount = 1;
-        this.queueLayout.RowCount = 3;
+        this.queueLayout.RowCount = 2;
         this.queueLayout.Dock = System.Windows.Forms.DockStyle.Fill;
+        this.queueLayout.AutoSize = true;
         this.queueLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
         this.queueLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this.queueLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
-        this.queueLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
         this.queueLayout.Controls.Add(this.buttonRow, 0, 0);
         this.queueLayout.Controls.Add(this.progressRow, 0, 1);
-        this.queueLayout.Controls.Add(this.queueList, 0, 2);
 
         //
         // buttonRow — the two actions the main job needs, and nothing else. Every
-        // other action is on a shortcut, in the application menu or on the queue's
-        // context menu, so a screen reader meets six controls here instead of nine
-        // and each of them matters.
+        // other action is on a shortcut, in the application menu or on the book
+        // list's context menu.
         //
         this.buttonRow.Name = "buttonRow";
         this.buttonRow.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -571,7 +493,7 @@ partial class MainForm
         //
         // downloadButton
         //
-        this.downloadButton.Text = "&Download selected";
+        this.downloadButton.Text = "&Download";
         this.downloadButton.AutoSize = true;
         this.downloadButton.TabIndex = 10;
         this.downloadButton.Margin = new System.Windows.Forms.Padding(3, 6, 3, 3);
@@ -581,53 +503,13 @@ partial class MainForm
         //
         // cancelButton
         //
-        this.cancelButton.Text = "&Cancel active";
+        this.cancelButton.Text = "&Cancel download";
         this.cancelButton.AutoSize = true;
         this.cancelButton.TabIndex = 11;
         this.cancelButton.Margin = new System.Windows.Forms.Padding(3, 6, 3, 3);
         this.cancelButton.AccessibleRole = System.Windows.Forms.AccessibleRole.PushButton;
         this.cancelButton.Enabled = false;
         this.cancelButton.Click += cancelButton_Click;
-
-        //
-        // queueMenu — the download queue's own actions. They act on a selected row,
-        // so they live on the row's context menu (menu key, Shift F10 or right click)
-        // and on shortcuts, instead of standing on the window all day.
-        //
-        this.queueMenu.Name = "queueMenu";
-        this.queueMenu.AccessibleName = "Download queue";
-        this.queueMenu.Items.AddRange(
-        [
-            this.queueMenuRetry,
-            this.queueMenuRemove,
-            this.queueMenuSeparator,
-            this.queueMenuClearFinished,
-        ]);
-
-        //
-        // queueMenuRetry
-        //
-        this.queueMenuRetry.Name = "queueMenuRetry";
-        this.queueMenuRetry.AccessibleName = "Retry";
-        this.queueMenuRetry.ShortcutKeyDisplayString = "Ctrl + R";
-        this.queueMenuRetry.Enabled = false;
-        // Wired in WireMenus, not here: the queue's actions are ordinary methods
-        // that the keyboard shortcuts call too, so they are not button handlers.
-
-        //
-        // queueMenuRemove — only for an item that has not started downloading yet
-        //
-        this.queueMenuRemove.Name = "queueMenuRemove";
-        this.queueMenuRemove.AccessibleName = "Remove from queue";
-        this.queueMenuRemove.ShortcutKeyDisplayString = "Ctrl + Delete";
-        this.queueMenuRemove.Enabled = false;
-
-        //
-        // queueMenuClearFinished
-        //
-        this.queueMenuClearFinished.Name = "queueMenuClearFinished";
-        this.queueMenuClearFinished.AccessibleName = "Clear finished";
-        this.queueMenuClearFinished.ShortcutKeyDisplayString = "Ctrl + Shift + Delete";
 
         //
         // progressRow — the active download's progress, exposed as a progress bar
@@ -657,6 +539,7 @@ partial class MainForm
         this.progressBar.Height = 18;
         this.progressBar.Margin = new System.Windows.Forms.Padding(3, 5, 3, 3);
         this.progressBar.TabIndex = 12;
+        this.progressBar.Name = "progressBar";
         this.progressBar.AccessibleRole = System.Windows.Forms.AccessibleRole.ProgressBar;
         this.progressBar.AccessibleName = "Download progress";
 
@@ -671,18 +554,6 @@ partial class MainForm
         this.progressStatus.AccessibleRole = System.Windows.Forms.AccessibleRole.StaticText;
 
         //
-        // queueList — pending / active / completed / failed items with per-item progress
-        //
-        this.queueList.Dock = System.Windows.Forms.DockStyle.Fill;
-        this.queueList.TabIndex = 13;
-        this.queueList.Name = "queueList";
-        this.queueList.ContextMenuStrip = this.queueMenu;
-        this.queueList.Margin = new System.Windows.Forms.Padding(3, 6, 3, 3);
-        this.queueList.HorizontalScrollbar = true;
-        this.queueList.AccessibleRole = System.Windows.Forms.AccessibleRole.List;
-        this.queueList.SelectedIndexChanged += queueList_SelectedIndexChanged;
-
-        //
         // statusGroup — 3. Status
         //
         this.statusGroup.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -692,18 +563,16 @@ partial class MainForm
         this.statusGroup.Controls.Add(this.statusLayout);
 
         //
-        // statusLayout — the status line, then the activity log
+        // statusLayout — the status line
         //
         this.statusLayout.Name = "statusLayout";
         this.statusLayout.ColumnCount = 1;
-        this.statusLayout.RowCount = 2;
+        this.statusLayout.RowCount = 1;
         this.statusLayout.Dock = System.Windows.Forms.DockStyle.Fill;
         this.statusLayout.AutoSize = true;
         this.statusLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
         this.statusLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
-        this.statusLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, LogRowHeight));
         this.statusLayout.Controls.Add(this.statusLabel, 0, 0);
-        this.statusLayout.Controls.Add(this.logBox, 0, 1);
 
         //
         // statusLabel — a live region: NVDA reads it whenever the text changes
@@ -715,18 +584,6 @@ partial class MainForm
         this.statusLabel.TabStop = false;
         this.statusLabel.AccessibleName = "Status";
         this.statusLabel.AccessibleRole = System.Windows.Forms.AccessibleRole.StaticText;
-
-        //
-        // logBox
-        //
-        this.logBox.Dock = System.Windows.Forms.DockStyle.Fill;
-        this.logBox.ReadOnly = true;
-        this.logBox.Multiline = true;
-        this.logBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-        this.logBox.Margin = new System.Windows.Forms.Padding(3, 4, 3, 3);
-        this.logBox.TabIndex = 15;
-        this.logBox.Name = "logBox";
-        this.logBox.AccessibleRole = System.Windows.Forms.AccessibleRole.Text;
 
         //
         // MainForm
@@ -753,8 +610,6 @@ partial class MainForm
         this.providerRow.PerformLayout();
         this.searchRow.ResumeLayout(false);
         this.searchRow.PerformLayout();
-        this.languageRow.ResumeLayout(false);
-        this.languageRow.PerformLayout();
         this.libraryHeader.ResumeLayout(false);
         this.libraryHeader.PerformLayout();
         this.queueGroup.ResumeLayout(false);

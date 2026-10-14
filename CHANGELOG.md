@@ -5,7 +5,7 @@ All notable changes to **Audiobook Downloader** are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Jump to: [Unreleased](#unreleased) · [1.2.0](#120) · [1.1.0](#110) · [1.0.0](#100)
+Jump to: [Unreleased](#unreleased) · [1.3.0](#130) · [1.2.0](#120) · [1.1.0](#110) · [1.0.0](#100)
 
 > Release dates are given in **UTC**. The first public build finished at
 > 2026-09-17 19:23 UTC, which was already 2026-09-18 in the maintainer's local
@@ -16,6 +16,64 @@ Jump to: [Unreleased](#unreleased) · [1.2.0](#120) · [1.1.0](#110) · [1.0.0](
 ## [Unreleased]
 
 Nothing yet.
+
+---
+
+## [1.3.0] — 2026-10-14
+
+A simpler main window, a format choice for every download, Audible books saved
+without DRM automatically, and a tidier Settings dialog.
+
+### Added
+
+- **Choose the format when you download.** Pressing Download opens a small window
+  with a Format list and a Download now button. Audible books can be saved as one
+  M4B, one MP3, or one M4B or MP3 file per chapter; Project Gutenberg books as audio,
+  EPUB, HTML or plain text, whichever the book has. The last choice is selected next
+  time.
+- **A Windows notification for every finished book,** with Windows' own notification
+  sound, and "Download successful" read by the screen reader. A failed book is
+  announced with the reason. The notification can be turned off in Settings, General.
+- **Progress you can hear:** a beep for every percent, pitched like NVDA's progress
+  bars, and the percentage read every 10 percent. The beeps stop while the progress
+  bar has focus, since NVDA beeps for it then.
+- **Book list menu** (Applications key or Shift+F10): Download, Play and Book
+  details. Book details opens as text that is read line by line with the arrows.
+
+### Changed
+
+- **DRM is removed from every Audible book automatically.** The setting is gone. A
+  book in your library that you did not buy (an Audible Plus title) gets a notice
+  first: removing its DRM may be illegal in your country and is at your own
+  responsibility. It is left out unless you accept.
+- **Books are saved in "Book Download" inside your Downloads folder** unless you
+  choose another folder. Settings that still had the old default (Desktop\Audiobooks)
+  move to the new one.
+- **The main window is simpler.** The list is called Download provider, the buttons
+  are Download and Cancel download, and pressing Download moves focus to the progress
+  bar, then back to the book list when it is done.
+- **Settings has five tabs** (General, Downloads, Audible, Language, Accessibility),
+  each split into named groups that the screen reader announces. The language of the
+  books each source lists is chosen under Language, instead of on the main window.
+
+### Removed
+
+- The download queue, its menu and its shortcuts (Ctrl+R, Ctrl+Delete,
+  Ctrl+Shift+Delete). The selected books simply download, one after another.
+- The activity log on the main window (Ctrl+L, Alt+L). The log file is still kept.
+- The Audible store and wishlist.
+- Removing DRM from AAX and AAXC files already on the computer, with its key prompt
+  and Ctrl+K help.
+- The format settings: the format is chosen when you download.
+
+### Fixed
+
+- The app, and the screen reader with it, froze for several seconds when a book
+  finished downloading.
+- In Settings, Left and Right on the tabs moved focus into the page instead of to the
+  next tab.
+- Many Alt keys in Settings belonged to two options on the same tab, in every
+  language.
 
 ---
 
@@ -504,5 +562,7 @@ Initial release.
 ---
 
 [Unreleased]: #unreleased
+[1.3.0]: #130
+[1.2.0]: #120
 [1.1.0]: #110
 [1.0.0]: #100

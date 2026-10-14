@@ -53,12 +53,9 @@ public sealed partial class DownloadManager
 
         // Never clobber a file that is already there. A ".part" file from an earlier
         // attempt deliberately does not count, so retrying resumes that download.
-        var decrypting = ticket.NeedsDecryption && _settings.DrmRemovalEnabled;
-
-        // A file already on this computer is decrypted where it is, never copied first.
-        if (decrypting && ticket.Url.IsFile)
-            return await DecryptLocalFileAsync(book, ticket, progress, ct);
-        var finalExtension = decrypting && WantsMp3 ? ".mp3" : ".m4b";
+        // An Audible book always has its DRM removed; a free book is kept as it is.
+        var decrypting = ticket.NeedsDecryption;
+        var finalExtension = decrypting && WantsMp3(book) ? ".mp3" : ".m4b";
         var baseName = decrypting
             ? UniqueBaseName(folder, MakeFileName(book), ext, finalExtension)
             : UniqueBaseName(folder, MakeFileName(book), ext);
@@ -106,11 +103,7 @@ public sealed partial class DownloadManager
                 return new DownloadResult(true, decryptedPath, null);
             }
 
-            // 3) plain (DRM-free) file, or an Audible book kept with its DRM: keep it
-            // exactly as downloaded. The keys are remembered, so turning DRM removal
-            // on later can still unlock it without downloading it again.
-            if (ticket.NeedsDecryption)
-                RememberKeys(encryptedPath, ticket);
+            // 3) plain (DRM-free) file: keep it exactly as downloaded.
             await SaveCoverAsync(book, encryptedPath, ct);
             progress?.Report(new DownloadProgress(DownloadPhase.Done, 100, $"Saved {encryptedPath}"));
             return new DownloadResult(true, encryptedPath, null);
@@ -439,57 +432,6 @@ public sealed partial class DownloadManager
         return Promote(partPath, dest);
     }
 
-    /// <summary>The keys that unlock an encrypted file, stored against its path.</summary>
-    private void RememberKeys(string encryptedPath, DownloadTicket ticket)
-    {
-        try
-        {
-            _settings.CacheKeys(encryptedPath, new CachedKeys(encryptedPath, ticket.Key, ticket.Iv, ticket.ActivationBytes));
-            Log.Info($"Kept with DRM: {Path.GetFileName(encryptedPath)}. Its keys are remembered for later.");
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"Could not remember the keys for {encryptedPath}: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Removes DRM from an AAX or AAXC file already on disk. A file in the download
-    /// folder (a book downloaded earlier with its DRM) gets its DRM-free copy beside
-    /// it and, when the settings say so, the encrypted original is removed once the
-    /// copy has been checked. A file anywhere else is converted into the download
-    /// folder and never touched.
-    /// </summary>
-    private async Task<DownloadResult> DecryptLocalFileAsync(BookInfo book, DownloadTicket ticket,
-        IProgress<DownloadProgress>? progress, CancellationToken ct)
-    {
-        var source = ticket.Url.LocalPath;
-        if (!File.Exists(source))
-            return new DownloadResult(false, null, $"The file {source} no longer exists.");
-
-        var ours = IsInside(source, _settings.OutputFolder);
-        var folder = ours ? Path.GetDirectoryName(source)! : FolderFor(_settings, book);
-        Directory.CreateDirectory(folder);
-
-        var extension = WantsMp3 ? ".mp3" : ".m4b";
-        var name = ours ? Path.GetFileNameWithoutExtension(source) : MakeFileName(book);
-        var output = Path.Combine(folder, UniqueBaseName(folder, name, extension) + extension);
-
-        progress?.Report(new DownloadProgress(DownloadPhase.Decrypting, 0, "Removing DRM…"));
-        var result = await DecryptAsync(source, output, ticket, book, null, progress, ct);
-        if (result is null)
-            return new DownloadResult(false, null, "Decryption failed. The encrypted file was left as it was.");
-
-        if (ours && _settings.DeleteIntermediateFile)
-        {
-            DeleteFile(source);
-            lock (_settings) _settings.KeyCache.RemoveAll(k => string.Equals(k.FileName, source, StringComparison.OrdinalIgnoreCase));
-        }
-
-        progress?.Report(new DownloadProgress(DownloadPhase.Done, 100, $"Saved {result}"));
-        return new DownloadResult(true, result, null);
-    }
-
     // ------------------------------------------------------------------
     // Backup
     // ------------------------------------------------------------------
@@ -607,32 +549,13 @@ public sealed partial class DownloadManager
         }
     }
 
-    /// <summary>
-    /// Encrypted Audible files in the download folder whose keys are known, so their
-    /// DRM can be removed without downloading them again.
-    /// </summary>
-    public static IReadOnlyList<string> FindEncryptedDownloads(AppSettings settings)
-    {
-        try
-        {
-            if (!Directory.Exists(settings.OutputFolder))
-                return [];
+    /// <summary>MP3 rather than M4B: the format chosen for this book, or else the settings.</summary>
+    private bool WantsMp3(BookInfo book) =>
+        (book.Format ?? _settings.OutputFormat ?? "m4b").StartsWith("mp3", StringComparison.OrdinalIgnoreCase);
 
-            return Directory.EnumerateFiles(settings.OutputFolder, "*.*", SearchOption.AllDirectories)
-                .Where(f => f.EndsWith(".aaxc", StringComparison.OrdinalIgnoreCase) ||
-                            f.EndsWith(".aax", StringComparison.OrdinalIgnoreCase))
-                .Where(f => settings.FindKeys(f) is { } keys &&
-                            (!string.IsNullOrEmpty(keys.Key) || !string.IsNullOrEmpty(keys.ActivationBytes)))
-                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return [];
-        }
-    }
-
-    private bool WantsMp3 => string.Equals(_settings.OutputFormat, "mp3", StringComparison.OrdinalIgnoreCase);
+    /// <summary>One file per chapter: the format chosen for this book, or else the settings.</summary>
+    private bool SplitsChapters(BookInfo book) =>
+        book.Format is { } format ? format.EndsWith("-chapters", StringComparison.OrdinalIgnoreCase) : _settings.SplitByChapter;
 
     /// <summary>
     /// Decrypt the file, returning the path of the DRM-free result (a file, or a
@@ -716,11 +639,12 @@ public sealed partial class DownloadManager
                 progress?.Report(new DownloadProgress(DownloadPhase.Decrypting, e.FractionCompleted * 100,
                     $"Converting… {e.ProcessPosition:hh\\:mm\\:ss} / {e.EndTime:hh\\:mm\\:ss}"));
 
-        if (_settings.SplitByChapter)
+        var mp3 = WantsMp3(book);
+        if (SplitsChapters(book))
         {
             chapterInfo ??= await ReadChaptersAsync(source, ct);
             if (chapterInfo is not null)
-                return await SplitIntoChaptersAsync(source, chapterInfo, output, Report, ct);
+                return await SplitIntoChaptersAsync(source, chapterInfo, output, mp3, Report, ct);
 
             Log.Warn($"'{book.Title}' has no usable chapter list, so it was saved as one file instead of one per chapter.");
         }
@@ -733,7 +657,7 @@ public sealed partial class DownloadManager
         {
             await using (var destination = new FileStream(partPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 1 << 16, useAsync: true))
             {
-                var op = WantsMp3
+                var op = mp3
                     ? AAXClean.Codecs.Mp4FileExtensions.ConvertToMp3Async(source, destination, source.GetDefaultLameConfig(), chapterInfo)
                     : source.ConvertToMp4aAsync(destination, chapterInfo);
                 Report(op);
@@ -760,7 +684,7 @@ public sealed partial class DownloadManager
     /// the book. Returns the folder.
     /// </summary>
     private async Task<string> SplitIntoChaptersAsync(AAXClean.Mp4File aax, Mpeg4Lib.ChapterInfo chapterInfo,
-        string output, Action<AAXClean.Mp4Operation> report, CancellationToken ct)
+        string output, bool mp3, Action<AAXClean.Mp4Operation> report, CancellationToken ct)
     {
         var parent = Path.GetDirectoryName(output)!;
         var name = Path.GetFileNameWithoutExtension(output);
@@ -769,7 +693,7 @@ public sealed partial class DownloadManager
             folder = Path.Combine(parent, $"{name} ({n})");
         Directory.CreateDirectory(folder);
 
-        var extension = WantsMp3 ? ".mp3" : ".m4b";
+        var extension = mp3 ? ".mp3" : ".m4b";
         var count = chapterInfo.Count;
         var width = Math.Max(2, count.ToString().Length);
         var opened = new List<Stream>();
@@ -781,7 +705,7 @@ public sealed partial class DownloadManager
         try
         {
             AAXClean.Mp4Operation op;
-            if (WantsMp3)
+            if (mp3)
             {
                 var lame = aax.GetDefaultLameConfig();
                 var number = 0;

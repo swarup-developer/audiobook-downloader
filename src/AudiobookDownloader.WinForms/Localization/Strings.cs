@@ -140,7 +140,7 @@ internal static partial class Strings
         ["Menu.Refresh"] = new() { ["en"] = "&Reload list", ["hi"] = "सूची फिर से &लोड करें", ["es"] = "&Recargar lista" },
 
         // ---------------- main window ----------------
-        ["Main.Provider"] = new() { ["en"] = "&Provider:", ["hi"] = "&प्रदाता:", ["es"] = "&Proveedor:" },
+        ["Main.Provider"] = new() { ["en"] = "Download &provider:", ["hi"] = "डाउनलोड &प्रदाता:", ["es"] = "&Proveedor de descarga:" },
         ["Main.ProviderAccessible"] = new()
         {
             ["en"] = "Download provider",
@@ -156,15 +156,12 @@ internal static partial class Strings
         // No mnemonic: the language list is reached with the Alt + U shortcut below,
         // and an underlined letter here would claim Alt + L for the same job as the
         // activity log.
-        ["Main.Language"] = new() { ["en"] = "Book language:", ["hi"] = "पुस्तक भाषा:", ["es"] = "Idioma de los libros:" },
-        ["Main.LanguageAccessible"] = new() { ["en"] = "Book language", ["hi"] = "पुस्तक की भाषा", ["es"] = "Idioma de los libros" },
         // The list's caption says what it holds: the Audible library you own, or what
         // a free catalogue found for your search.
         ["Main.Books"] = new() { ["en"] = "Search results (&books):", ["hi"] = "खोज परिणाम (&पुस्तकें):", ["es"] = "Resultados (&libros):" },
         ["Main.BooksAudible"] = new() { ["en"] = "Your Audible library (&books):", ["hi"] = "आपकी Audible लाइब्रेरी (&पुस्तकें):", ["es"] = "Su biblioteca de Audible (&libros):" },
-        ["Main.Download"] = new() { ["en"] = "&Download selected", ["hi"] = "चयनित &डाउनलोड करें", ["es"] = "&Descargar seleccionados" },
-        ["Main.Cancel"] = new() { ["en"] = "&Cancel active", ["hi"] = "सक्रिय &रद्द करें", ["es"] = "&Cancelar la activa" },
-        ["Main.Keys"] = new() { ["en"] = "How to get &keys…", ["hi"] = "&कीज़ कैसे पाएँ…", ["es"] = "Cómo obtener las &claves…" },
+        ["Main.Download"] = new() { ["en"] = "&Download", ["hi"] = "&डाउनलोड करें", ["es"] = "&Descargar" },
+        ["Main.Cancel"] = new() { ["en"] = "&Cancel download", ["hi"] = "डाउनलोड &रद्द करें", ["es"] = "&Cancelar la descarga" },
         ["Main.OpenFolder"] = new() { ["en"] = "&Open download folder", ["hi"] = "डाउनलोड &फ़ोल्डर खोलें", ["es"] = "&Abrir la carpeta de descargas" },
 
         // ---------------- the download queue's own menu ----------------
@@ -172,25 +169,20 @@ internal static partial class Strings
         // The queue's actions are on the list's context menu (the menu key, Shift F10
         // or a right click) and on shortcuts, so the window itself carries only the two
         // actions the main job needs.
-        ["QueueMenu.Retry"] = new() { ["en"] = "&Retry", ["hi"] = "&पुनः प्रयास", ["es"] = "&Reintentar" },
-        ["QueueMenu.Remove"] = new() { ["en"] = "Re&move", ["hi"] = "&हटाएँ", ["es"] = "&Quitar" },
-        ["QueueMenu.ClearFinished"] = new() { ["en"] = "Clear &finished", ["hi"] = "पूर्ण &साफ़ करें", ["es"] = "Borrar los &terminados" },
 
         // Titles of the three groups on the main window: 1. Find books,
         // 2. Downloads, 3. Status.
-        ["Main.Group.Books"] = new() { ["en"] = "1. Find books", ["hi"] = "1. पुस्तकें खोजें", ["es"] = "1. Buscar libros" },
-        ["Main.Group.Queue"] = new() { ["en"] = "2. Downloads", ["hi"] = "2. डाउनलोड", ["es"] = "2. Descargas" },
+        ["Main.Group.Books"] = new() { ["en"] = "1. Books", ["hi"] = "1. पुस्तकें", ["es"] = "1. Libros" },
+        ["Main.Group.Queue"] = new() { ["en"] = "2. Download", ["hi"] = "2. डाउनलोड", ["es"] = "2. Descarga" },
         ["Main.Group.Status"] = new() { ["en"] = "3. Status", ["hi"] = "3. स्थिति", ["es"] = "3. Estado" },
-        ["Main.QueueList"] = new() { ["en"] = "Download queue", ["hi"] = "डाउनलोड सूची", ["es"] = "Cola de descargas" },
         ["Main.Progress"] = new() { ["en"] = "Download progress", ["hi"] = "डाउनलोड प्रगति", ["es"] = "Progreso de la descarga" },
         ["Main.Status"] = new() { ["en"] = "Status", ["hi"] = "स्थिति", ["es"] = "Estado" },
-        ["Main.Log"] = new() { ["en"] = "Activity log", ["hi"] = "गतिविधि लॉग", ["es"] = "Registro de actividad" },
 
         // ---------------- common ----------------
         ["Common.OK"] = new() { ["en"] = "&OK", ["hi"] = "ठी&क है", ["es"] = "&Aceptar" },
         ["Common.Cancel"] = new() { ["en"] = "&Cancel", ["hi"] = "&रद्द करें", ["es"] = "&Cancelar" },
         ["Common.Close"] = new() { ["en"] = "&Close", ["hi"] = "&बंद करें", ["es"] = "&Cerrar" },
-        ["Common.Apply"] = new() { ["en"] = "&Apply", ["hi"] = "&लागू करें", ["es"] = "&Aplicar" },
+        ["Common.Apply"] = new() { ["en"] = "&Apply", ["hi"] = "&लागू करें", ["es"] = "Apl&icar" },
         ["Common.Browse"] = new() { ["en"] = "B&rowse…", ["hi"] = "&ब्राउज़ करें…", ["es"] = "E&xaminar…" },
 
         // ---------------- settings ----------------
@@ -198,33 +190,25 @@ internal static partial class Strings
         ["Settings.General"] = new() { ["en"] = "General", ["hi"] = "सामान्य", ["es"] = "General" },
         ["Settings.Downloads"] = new() { ["en"] = "Downloads", ["hi"] = "डाउनलोड", ["es"] = "Descargas" },
         ["Settings.Audible"] = new() { ["en"] = "Audible account", ["hi"] = "Audible खाता", ["es"] = "Cuenta de Audible" },
-        ["Settings.Gutenberg"] = new() { ["en"] = "Project Gutenberg", ["hi"] = "प्रोजेक्ट गुटेनबर्ग", ["es"] = "Project Gutenberg" },
         ["Settings.Language"] = new() { ["en"] = "Language", ["hi"] = "भाषा", ["es"] = "Idioma" },
         ["Settings.Accessibility"] = new() { ["en"] = "Accessibility", ["hi"] = "सुगम्यता", ["es"] = "Accesibilidad" },
 
         ["Set.OutputFolder"] = new() { ["en"] = "Download &folder:", ["hi"] = "डाउनलोड &फ़ोल्डर:", ["es"] = "Carpeta de &descargas:" },
-        ["Set.LocalFolder"] = new() { ["en"] = "Folder with your &AAX or AAXC files:", ["hi"] = "आपकी &AAX या AAXC फ़ाइलों का फ़ोल्डर:", ["es"] = "Carpeta con sus archivos &AAX o AAXC:" },
-        ["Set.OpenWhenDone"] = new() { ["en"] = "&Open the download folder when the queue finishes", ["hi"] = "सूची पूरी होने पर डाउनलोड &फ़ोल्डर खोलें", ["es"] = "&Abrir la carpeta cuando termine la cola" },
-        ["Set.Toast"] = new() { ["en"] = "Show a Windows &notification when downloads finish", ["hi"] = "डाउनलोड पूरा होने पर Windows &सूचना दिखाएँ", ["es"] = "Mostrar una &notificación de Windows al terminar" },
-        ["Set.ConfirmRemove"] = new() { ["en"] = "&Ask before removing an item from the queue", ["hi"] = "सूची से हटाने से पहले &पूछें", ["es"] = "&Preguntar antes de quitar de la cola" },
-        ["Set.RememberProvider"] = new() { ["en"] = "&Remember the last provider", ["hi"] = "पिछला प्रदाता &याद रखें", ["es"] = "&Recordar el último proveedor" },
-        ["Set.RemoveDrm"] = new() { ["en"] = "&Remove DRM from Audible books (DRM-free M4B or MP3 for your personal backup)", ["hi"] = "Audible पुस्तकों से &DRM हटाएँ (आपके निजी बैकअप के लिए DRM-मुक्त M4B या MP3)", ["es"] = "&Quitar el DRM de los libros de Audible (M4B o MP3 sin DRM para su copia personal)" },
-        ["Set.DeleteIntermediate"] = new() { ["en"] = "&Delete the encrypted original after successful decryption", ["hi"] = "डिक्रिप्शन के बाद मूल एन्क्रिप्टेड फ़ाइल &हटाएँ", ["es"] = "&Eliminar el original cifrado tras descifrar" },
+        ["Set.OpenWhenDone"] = new() { ["en"] = "Open &the download folder when downloads finish", ["hi"] = "&डाउनलोड पूरे होने पर डाउनलोड फ़ोल्डर खोलें", ["es"] = "Abrir &la carpeta de descargas al terminar" },
+        ["Set.RememberProvider"] = new() { ["en"] = "Remember the &last provider", ["hi"] = "पिछला प्रदाता &याद रखें", ["es"] = "&Recordar el último proveedor" },
+        ["Set.DeleteIntermediate"] = new() { ["en"] = "&Delete the encrypted original after successful decryption", ["hi"] = "&डिक्रिप्शन के बाद मूल एन्क्रिप्टेड फ़ाइल हटाएँ", ["es"] = "Eliminar el &original cifrado tras descifrar" },
         ["Set.RememberSignIn"] = new() { ["en"] = "&Remember the Audible sign-in on this computer", ["hi"] = "इस कंप्यूटर पर Audible साइन-इन &याद रखें", ["es"] = "&Recordar el inicio de sesión de Audible en este equipo" },
-        ["Set.LoadLibrary"] = new() { ["en"] = "Load my &library automatically after signing in", ["hi"] = "साइन इन के बाद &लाइब्रेरी अपने आप लोड करें", ["es"] = "Cargar mi &biblioteca tras iniciar sesión" },
-        ["Set.Country"] = new() { ["en"] = "Audible &country:", ["hi"] = "Audible &देश:", ["es"] = "&País de Audible:" },
+        ["Set.LoadLibrary"] = new() { ["en"] = "Load my &library automatically after signing in", ["hi"] = "सा&इन इन के बाद लाइब्रेरी अपने आप लोड करें", ["es"] = "Cargar mi &biblioteca tras iniciar sesión" },
+        ["Set.Country"] = new() { ["en"] = "Au&dible country:", ["hi"] = "Audible &देश:", ["es"] = "&País de Audible:" },
         ["Set.AccountStatus"] = new() { ["en"] = "Account status", ["hi"] = "खाता स्थिति", ["es"] = "Estado de la cuenta" },
-        ["Set.SignIn"] = new() { ["en"] = "&Sign in to Audible…", ["hi"] = "Audible में &साइन इन करें…", ["es"] = "&Iniciar sesión en Audible…" },
+        ["Set.SignIn"] = new() { ["en"] = "&Sign in to Audible…", ["hi"] = "Audible में &साइन इन करें…", ["es"] = "Iniciar &sesión en Audible…" },
         ["Set.SignInAccessible"] = new() { ["en"] = "Sign in to Audible", ["hi"] = "Audible में साइन इन करें", ["es"] = "Iniciar sesión en Audible" },
         ["Set.SwitchAccountAccessible"] = new() { ["en"] = "Switch Audible account", ["hi"] = "Audible खाता बदलें", ["es"] = "Cambiar de cuenta de Audible" },
-        ["Set.SignOut"] = new() { ["en"] = "Sign &out and forget this account", ["hi"] = "साइन &आउट करें और खाता भूल जाएँ", ["es"] = "Cerrar &sesión y olvidar esta cuenta" },
+        ["Set.SignOut"] = new() { ["en"] = "Sign out and &forget this account", ["hi"] = "साइन &आउट करें और खाता भूल जाएँ", ["es"] = "Cerrar sesión &y olvidar esta cuenta" },
         ["Set.SignOutAccessible"] = new() { ["en"] = "Sign out", ["hi"] = "साइन आउट करें", ["es"] = "Cerrar sesión" },
-        ["Set.DefaultLanguage"] = new() { ["en"] = "Default &language for Gutenberg searches:", ["hi"] = "गुटेनबर्ग खोज की डिफ़ॉल्ट &भाषा:", ["es"] = "&Idioma predeterminado para las búsquedas:" },
-        ["Set.PreferredFormat"] = new() { ["en"] = "Preferred &format:", ["hi"] = "पसंदीदा &प्रारूप:", ["es"] = "&Formato preferido:" },
-        ["Set.UiLanguage"] = new() { ["en"] = "&Interface language:", ["hi"] = "&इंटरफ़ेस भाषा:", ["es"] = "Idioma de la &interfaz:" },
+        ["Set.UiLanguage"] = new() { ["en"] = "&Interface language:", ["hi"] = "&इंटरफ़ेस भाषा:", ["es"] = "Idioma &de la interfaz:" },
         ["Set.AnnounceStatus"] = new() { ["en"] = "Announce &status changes through the screen reader", ["hi"] = "स्क्रीन रीडर से &स्थिति परिवर्तन बताएँ", ["es"] = "Anunciar los cambios de &estado con el lector de pantalla" },
         ["Set.AnnounceProgress"] = new() { ["en"] = "Announce download &progress milestones", ["hi"] = "डाउनलोड &प्रगति बताएँ", ["es"] = "Anunciar los hitos del &progreso" },
-        ["Set.KeepLog"] = new() { ["en"] = "Keep the &activity log visible", ["hi"] = "&गतिविधि लॉग दिखाई देता रहे", ["es"] = "Mantener visible el &registro de actividad" },
         ["Set.AccessibilityNote"] = new()
         {
             ["en"] = "This app never speaks through its own voice. Everything is exposed to Windows " +
@@ -246,39 +230,10 @@ internal static partial class Strings
         ["Main.NoBooks"] = new() { ["en"] = "No books matched. Change the search text or the language.", ["hi"] = "कोई पुस्तक नहीं मिली। खोज पाठ या भाषा बदलें।", ["es"] = "Ningún libro coincide. Cambie el texto de búsqueda o el idioma." },
         ["Main.ListFailed"] = new() { ["en"] = "The list could not be loaded. See the activity log.", ["hi"] = "सूची लोड नहीं हो सकी। गतिविधि लॉग देखें।", ["es"] = "No se pudo cargar la lista. Consulte el registro de actividad." },
         ["Main.ListFailedStatus"] = new() { ["en"] = "Could not list books: {0}", ["hi"] = "पुस्तकें सूचीबद्ध नहीं हो सकीं: {0}", ["es"] = "No se pudieron listar los libros: {0}" },
-        ["Main.QueueRunning"] = new() { ["en"] = "Queue running: {0} completed, {1} failed.", ["hi"] = "सूची चल रही है: {0} पूर्ण, {1} विफल।", ["es"] = "Cola en marcha: {0} completados, {1} fallidos." },
-        ["Main.QueueIdle"] = new() { ["en"] = "Queue idle: {0} completed, {1} failed, {2} pending.", ["hi"] = "सूची निष्क्रिय: {0} पूर्ण, {1} विफल, {2} प्रतीक्षित।", ["es"] = "Cola inactiva: {0} completados, {1} fallidos, {2} pendientes." },
         ["Main.SelectFirst"] = new() { ["en"] = "Select a book first.", ["hi"] = "पहले कोई पुस्तक चुनें।", ["es"] = "Seleccione primero un libro." },
-        ["Main.AddedToQueue"] = new() { ["en"] = "{0} added to the download queue.", ["hi"] = "{0} डाउनलोड सूची में जोड़े गए।", ["es"] = "{0} añadidos a la cola de descargas." },
-        ["Main.ResumingQueue"] = new()
-        {
-            ["en"] = "Resuming {0} unfinished download(s) where they left off. Press Cancel to stop.",
-            ["hi"] = "{0} अधूरे डाउनलोड वहीं से जारी हो रहे हैं जहाँ वे रुके थे। रोकने के लिए “रद्द करें” दबाएँ।",
-            ["es"] = "Se reanudan {0} descarga(s) sin terminar donde se quedaron. Pulse Cancelar para detenerlas.",
-        },
-        ["Main.RestoredQueue"] = new()
-        {
-            ["en"] = "The last run left {0} unfinished download(s) in the queue. Press Retry to try one again.",
-            ["hi"] = "पिछली बार {0} अधूरे डाउनलोड सूची में रह गए थे। फिर से कोशिश करने के लिए “पुनः प्रयास” दबाएँ।",
-            ["es"] = "La última sesión dejó {0} descarga(s) sin terminar en la cola. Pulse Reintentar para volver a intentarlo.",
-        },
         ["Main.Cancelling"] = new() { ["en"] = "Cancelling the active download…", ["hi"] = "सक्रिय डाउनलोड रद्द हो रहा है…", ["es"] = "Cancelando la descarga activa…" },
-        ["Main.SelectFailedFirst"] = new() { ["en"] = "Select a failed or cancelled item in the queue first.", ["hi"] = "पहले सूची में विफल या रद्द आइटम चुनें।", ["es"] = "Seleccione primero un elemento fallido o cancelado." },
-        ["Main.OnlyFailedRetry"] = new() { ["en"] = "Only failed or cancelled items can be retried.", ["hi"] = "केवल विफल या रद्द आइटम फिर से चलाए जा सकते हैं।", ["es"] = "Solo se pueden reintentar los elementos fallidos o cancelados." },
-        ["Main.Retrying"] = new() { ["en"] = "Retrying {0}.", ["hi"] = "{0} का पुनः प्रयास हो रहा है।", ["es"] = "Reintentando {0}." },
-        ["Main.SelectPendingFirst"] = new() { ["en"] = "Select a pending item in the queue first.", ["hi"] = "पहले सूची में प्रतीक्षित आइटम चुनें।", ["es"] = "Seleccione primero un elemento pendiente." },
-        ["Main.OnlyPendingRemove"] = new() { ["en"] = "Only items that are waiting or that failed can be removed.", ["hi"] = "केवल प्रतीक्षित या विफल आइटम हटाए जा सकते हैं।", ["es"] = "Solo se pueden quitar los elementos pendientes o fallidos." },
-        ["Main.RemoveConfirm"] = new() { ["en"] = "Remove \"{0}\" from the download queue?\n\nIt has not started downloading yet, so nothing will be lost.", ["hi"] = "\"{0}\" को डाउनलोड सूची से हटाएँ?\n\nइसका डाउनलोड शुरू नहीं हुआ, इसलिए कुछ भी नहीं खोएगा।", ["es"] = "¿Quitar \"{0}\" de la cola de descargas?\n\nAún no ha empezado, así que no se perderá nada." },
-        ["Main.RemoveConfirmTitle"] = new() { ["en"] = "Confirm removal", ["hi"] = "हटाने की पुष्टि", ["es"] = "Confirmar la eliminación" },
-        ["Main.RemovalCancelled"] = new() { ["en"] = "Removal cancelled.", ["hi"] = "हटाना रद्द किया गया।", ["es"] = "Eliminación cancelada." },
-        ["Main.Removed"] = new() { ["en"] = "Removed {0} from the queue.", ["hi"] = "{0} को सूची से हटा दिया।", ["es"] = "Se quitó {0} de la cola." },
-        ["Main.FinishedCleared"] = new() { ["en"] = "Finished items removed from the queue.", ["hi"] = "पूर्ण आइटम सूची से हटा दिए गए।", ["es"] = "Elementos terminados quitados de la cola." },
         ["Main.AllFinishedOk"] = new() { ["en"] = "All downloads finished: {0} downloaded successfully.", ["hi"] = "सभी डाउनलोड पूरे: {0} सफलतापूर्वक डाउनलोड हुए।", ["es"] = "Todas las descargas terminaron: {0} completadas." },
         ["Main.AllFinishedMixed"] = new() { ["en"] = "All downloads finished: {0} completed, {1} failed, {2} cancelled.", ["hi"] = "सभी डाउनलोड पूरे: {0} पूर्ण, {1} विफल, {2} रद्द।", ["es"] = "Todas las descargas terminaron: {0} completadas, {1} fallidas, {2} canceladas." },
-        ["Main.AllFinishedTitle"] = new() { ["en"] = "All downloads finished", ["hi"] = "सभी डाउनलोड पूरे", ["es"] = "Todas las descargas terminaron" },
-        ["Main.Notification"] = new() { ["en"] = "Notification", ["hi"] = "सूचना", ["es"] = "Notificación" },
-        ["Main.NotificationMessage"] = new() { ["en"] = "Notification message", ["hi"] = "सूचना संदेश", ["es"] = "Mensaje de notificación" },
-        ["Main.GotIt"] = new() { ["en"] = "&Got it", ["hi"] = "समझ &गया", ["es"] = "&Entendido" },
         ["Main.SettingsSaved"] = new() { ["en"] = "Settings saved. Downloads go to {0}", ["hi"] = "सेटिंग्स सहेज दी गईं। डाउनलोड यहाँ जाते हैं: {0}", ["es"] = "Configuración guardada. Las descargas van a {0}" },
         ["Main.AllLanguages"] = new() { ["en"] = "All languages", ["hi"] = "सभी भाषाएँ", ["es"] = "Todos los idiomas" },
         ["Main.ProgressAnnouncement"] = new() { ["en"] = "Downloading {0}, {1} percent.", ["hi"] = "{0} डाउनलोड हो रहा है, {1} प्रतिशत।", ["es"] = "Descargando {0}, {1} por ciento." },
@@ -322,7 +277,6 @@ internal static partial class Strings
         // Diagnostics stay in English on purpose: they are technical, and they are
         // what a bug report will quote back.
         ["Main.Tasks.Provider"] = new() { ["en"] = "loading books from the selected provider" },
-        ["Main.Tasks.Language"] = new() { ["en"] = "changing the book language" },
         ["Main.Tasks.Search"] = new() { ["en"] = "searching" },
         ["Main.Tasks.Settings"] = new() { ["en"] = "opening Settings" },
         ["Main.Tasks.Reload"] = new() { ["en"] = "reloading the book list" },
@@ -380,12 +334,6 @@ internal static partial class Strings
             ["hi"] = "मौजूदा प्रदाता से पुस्तकों की सूची फिर से लोड करें।",
             ["es"] = "Recargar la lista de libros del proveedor actual.",
         },
-        ["Shortcut.Keys"] = new()
-        {
-            ["en"] = "Explain how to get the decryption keys for AAX and AAXC files.",
-            ["hi"] = "AAX और AAXC फ़ाइलों की डिक्रिप्शन कीज़ कैसे पाएँ, यह बताएँ।",
-            ["es"] = "Explicar cómo obtener las claves de descifrado de los archivos AAX y AAXC.",
-        },
         ["Shortcut.Folder"] = new()
         {
             ["en"] = "Open the download folder.",
@@ -398,47 +346,11 @@ internal static partial class Strings
             ["hi"] = "ऐप बंद करें।",
             ["es"] = "Cerrar la aplicación.",
         },
-        ["Shortcut.Log"] = new()
-        {
-            ["en"] = "Show or hide the activity log. Your choice is remembered.",
-            ["hi"] = "गतिविधि लॉग दिखाएँ या छिपाएँ। आपका चुनाव याद रखा जाएगा।",
-            ["es"] = "Mostrar u ocultar el registro de actividad. Se recordará su elección.",
-        },
-        ["Shortcut.GoToLog"] = new()
-        {
-            ["en"] = "Go to the activity log, showing it first if it is hidden.",
-            ["hi"] = "गतिविधि लॉग पर जाएँ; छिपा हो तो पहले उसे दिखाएँ।",
-            ["es"] = "Ir al registro de actividad, mostrándolo primero si está oculto.",
-        },
-        ["Shortcut.Retry"] = new()
-        {
-            ["en"] = "Retry the selected failed or cancelled item in the download queue.",
-            ["hi"] = "डाउनलोड सूची में चुने गए विफल या रद्द आइटम का फिर से प्रयास करें।",
-            ["es"] = "Reintentar el elemento fallido o cancelado seleccionado en la cola de descargas.",
-        },
-        ["Shortcut.Remove"] = new()
-        {
-            ["en"] = "Remove the selected item that is waiting or that failed.",
-            ["hi"] = "चुना गया प्रतीक्षित या विफल आइटम हटाएँ।",
-            ["es"] = "Quitar el elemento seleccionado que está pendiente o que falló.",
-        },
-        ["Shortcut.ClearFinished"] = new()
-        {
-            ["en"] = "Clear completed and cancelled items from the download queue.",
-            ["hi"] = "डाउनलोड सूची से पूर्ण और रद्द आइटम साफ़ करें।",
-            ["es"] = "Borrar de la cola los elementos terminados y cancelados.",
-        },
         ["Shortcut.SearchHistory"] = new()
         {
             ["en"] = "Open your previous searches for the current provider.",
             ["hi"] = "मौजूदा प्रदाता के लिए अपनी पिछली खोजें खोलें।",
             ["es"] = "Abrir sus búsquedas anteriores para el proveedor actual.",
-        },
-        ["Shortcut.BookLanguage"] = new()
-        {
-            ["en"] = "Go to the book language list (Audible, LibriVox and Project Gutenberg).",
-            ["hi"] = "पुस्तक भाषा सूची पर जाएँ (Audible, LibriVox और Project Gutenberg)।",
-            ["es"] = "Ir a la lista de idiomas de los libros (Audible, LibriVox y Project Gutenberg).",
         },
         ["Shortcut.MoveFocus"] = new()
         {
@@ -531,15 +443,15 @@ internal static partial class Strings
         ["Details.File"] = new() { ["en"] = "Downloaded file", ["hi"] = "डाउनलोड की गई फ़ाइल", ["es"] = "Archivo descargado" },
         ["Set.OrganizeByAuthor"] = new()
         {
-            ["en"] = "Save each book in a folder named after its &author",
-            ["hi"] = "हर पुस्तक को उसके &लेखक के नाम वाले फ़ोल्डर में सहेजें",
-            ["es"] = "Guardar cada libro en una carpeta con el nombre de su &autor",
+            ["en"] = "Save &each book in a folder named after its author",
+            ["hi"] = "हर पुस्तक को &उसके लेखक के नाम वाले फ़ोल्डर में सहेजें",
+            ["es"] = "Guardar cada &libro en una carpeta con el nombre de su autor",
         },
         ["Set.WarnDuplicates"] = new()
         {
             ["en"] = "As&k before downloading a book that is already downloaded",
-            ["hi"] = "पहले से डाउनलोड पुस्तक को फिर डाउनलोड करने से पहले &पूछें",
-            ["es"] = "Pre&guntar antes de descargar un libro ya descargado",
+            ["hi"] = "पहले &से डाउनलोड पुस्तक को फिर डाउनलोड करने से पहले पूछें",
+            ["es"] = "Preguntar antes de descargar &un libro ya descargado",
         },
         ["Shortcut.Export"] = new()
         {
@@ -630,32 +542,21 @@ internal static partial class Strings
         ["Shortcut.SortLength"] = new() { ["en"] = "Sort the book list by length, longest first.", ["hi"] = "पुस्तक सूची को अवधि से क्रमबद्ध करें, सबसे लंबी पहले।", ["es"] = "Ordenar la lista por duración, la más larga primero." },
         ["Shortcut.SortAdded"] = new() { ["en"] = "Sort the book list by the date added, newest first.", ["hi"] = "पुस्तक सूची को जोड़ने की तारीख से क्रमबद्ध करें, नई पहले।", ["es"] = "Ordenar la lista por fecha, los más recientes primero." },
         ["Shortcut.HideDownloaded"] = new() { ["en"] = "Hide or show the books that are already downloaded.", ["hi"] = "पहले से डाउनलोड पुस्तकें छिपाएँ या दिखाएँ।", ["es"] = "Ocultar o mostrar los libros ya descargados." },
-        ["Set.OutputFormat"] = new() { ["en"] = "Audio &format for Audible books:", ["hi"] = "Audible पुस्तकों का ऑडियो &प्रारूप:", ["es"] = "&Formato de audio de Audible:" },
         ["Format.M4b"] = new() { ["en"] = "M4B (lossless, keeps chapters)", ["hi"] = "M4B (बिना गुणवत्ता हानि, अध्याय सहित)", ["es"] = "M4B (sin pérdida, con capítulos)" },
         ["Format.Mp3"] = new() { ["en"] = "MP3 (plays everywhere; slower to make)", ["hi"] = "MP3 (हर जगह चलता है; बनने में धीमा)", ["es"] = "MP3 (se reproduce en todas partes; más lento)" },
-        ["Set.SplitChapters"] = new() { ["en"] = "Save one file per &chapter", ["hi"] = "हर &अध्याय की अलग फ़ाइल सहेजें", ["es"] = "Guardar un archivo por &capítulo" },
-        ["Set.SaveCover"] = new() { ["en"] = "Save the c&over picture next to each book", ["hi"] = "हर पुस्तक के पास &कवर चित्र सहेजें", ["es"] = "Guardar la imagen de &portada junto a cada libro" },
+        ["Set.SaveCover"] = new() { ["en"] = "Save &the cover picture next to each book", ["hi"] = "&हर पुस्तक के पास कवर चित्र सहेजें", ["es"] = "Guardar la imagen de &portada junto a cada libro" },
         ["Set.EmbedInfo"] = new() { ["en"] = "Write the description, series and cover &into the book file", ["hi"] = "विवरण, सीरीज़ और कवर पुस्तक फ़ाइल &में लिखें", ["es"] = "Escribir la descripción, la serie y la portada &en el archivo" },
-        ["Set.Parallel"] = new() { ["en"] = "Downloads at the &same time:", ["hi"] = "एक &साथ डाउनलोड:", ["es"] = "Descargas &simultáneas:" },
-        ["Set.SpeedLimit"] = new() { ["en"] = "Download speed &limit:", ["hi"] = "डाउनलोड गति &सीमा:", ["es"] = "&Límite de velocidad:" },
+        ["Set.Parallel"] = new() { ["en"] = "Do&wnloads at the same time:", ["hi"] = "&एक साथ डाउनलोड:", ["es"] = "Descargas &simultáneas:" },
+        ["Set.SpeedLimit"] = new() { ["en"] = "Download speed &limit:", ["hi"] = "डाउनलोड ग&ति सीमा:", ["es"] = "Límite de &velocidad:" },
         ["Speed.None"] = new() { ["en"] = "No limit", ["hi"] = "कोई सीमा नहीं", ["es"] = "Sin límite" },
-        ["Set.IncludePodcasts"] = new() { ["en"] = "List &podcast episodes from my library", ["hi"] = "मेरी लाइब्रेरी के &पॉडकास्ट एपिसोड दिखाएँ", ["es"] = "Mostrar los episodios de &podcast de mi biblioteca" },
-        ["Set.AutoDownload"] = new() { ["en"] = "Download new purchases &automatically when the app starts", ["hi"] = "ऐप शुरू होने पर नई खरीदारी &अपने आप डाउनलोड करें", ["es"] = "Descargar las compras nuevas &automáticamente al iniciar" },
-        ["Set.CheckUpdates"] = new() { ["en"] = "Check for &updates when the app starts", ["hi"] = "ऐप शुरू होने पर &अपडेट जाँचें", ["es"] = "Buscar &actualizaciones al iniciar" },
+        ["Set.IncludePodcasts"] = new() { ["en"] = "List &podcast episodes from my library", ["hi"] = "मेरी लाइब्रेरी के &पॉडकास्ट एपिसोड दिखाएँ", ["es"] = "&Mostrar los episodios de podcast de mi biblioteca" },
+        ["Set.AutoDownload"] = new() { ["en"] = "Download new purchases automatically when &the app starts", ["hi"] = "ऐप शुरू होने पर नई खरीदारी &अपने आप डाउनलोड करें", ["es"] = "Descargar &las compras nuevas automáticamente al iniciar" },
+        ["Set.CheckUpdates"] = new() { ["en"] = "Check for &updates when the app starts", ["hi"] = "ऐप शुरू होने पर &अपडेट जाँचें", ["es"] = "&Buscar actualizaciones al iniciar" },
         ["Details.Series"] = new() { ["en"] = "Series", ["hi"] = "सीरीज़", ["es"] = "Serie" },
         ["Details.Description"] = new() { ["en"] = "Description", ["hi"] = "विवरण", ["es"] = "Descripción" },
         ["Details.Added"] = new() { ["en"] = "Added", ["hi"] = "जोड़ा गया", ["es"] = "Añadido" },
 
         // ---------------- DRM removal, opt-in ----------------
-        ["Drm.ConfirmTitle"] = new() { ["en"] = "Remove DRM from Audible books", ["hi"] = "Audible पुस्तकों से DRM हटाएँ", ["es"] = "Quitar el DRM de los libros de Audible" },
-        ["Drm.Confirm"] = new() { ["en"] = "With this on, every Audible book you download is decrypted completely on this computer and saved as an ordinary M4B or MP3 file that plays anywhere, with no DRM left in it.\n\nOnly do this for books you have bought, and only for your own personal backup. Do not share the files. Removing DRM may not be allowed where you live; you are responsible for using this as your local law allows.\n\nTurn on DRM removal?", ["hi"] = "इसे चालू करने पर आपकी हर डाउनलोड की गई Audible पुस्तक इसी कंप्यूटर पर पूरी तरह डिक्रिप्ट होकर सामान्य M4B या MP3 फ़ाइल में सहेजी जाएगी, जो हर जगह चलती है और जिसमें कोई DRM नहीं रहता।\n\nऐसा केवल अपनी खरीदी हुई पुस्तकों के लिए और केवल अपने निजी बैकअप के लिए करें। फ़ाइलें साझा न करें। आपके यहाँ DRM हटाना कानूनी रूप से मना हो सकता है; इसे अपने स्थानीय कानून के अनुसार इस्तेमाल करना आपकी ज़िम्मेदारी है।\n\nDRM हटाना चालू करें?", ["es"] = "Con esta opción, cada libro de Audible que descargue se descifra por completo en este equipo y se guarda como un archivo M4B o MP3 normal, sin DRM, que se reproduce en cualquier sitio.\n\nHágalo solo con libros que haya comprado y solo para su copia personal. No comparta los archivos. Quitar el DRM puede no estar permitido donde usted vive; usted es responsable de usarlo según su ley local.\n\n¿Activar la eliminación del DRM?" },
-        ["Drm.ConvertExisting"] = new() { ["en"] = "{0} Audible book(s) in your download folder still have DRM.\n\nRemove the DRM from them now? Nothing is downloaded again; the encrypted files are only replaced once the DRM-free copy has been checked.", ["hi"] = "आपके डाउनलोड फ़ोल्डर में {0} Audible पुस्तक(ओं) में अभी भी DRM है।\n\nक्या अभी उनसे DRM हटाएँ? कुछ भी दोबारा डाउनलोड नहीं होगा; एन्क्रिप्टेड फ़ाइलें तभी बदली जाएँगी जब DRM-मुक्त कॉपी जाँच ली जाएगी।", ["es"] = "{0} libro(s) de Audible de su carpeta de descargas aún tienen DRM.\n\n¿Quitarles el DRM ahora? No se descarga nada de nuevo; los archivos cifrados solo se sustituyen cuando la copia sin DRM se ha comprobado." },
-        ["Drm.ConvertTitle"] = new() { ["en"] = "Books that still have DRM", ["hi"] = "जिन पुस्तकों में अभी DRM है", ["es"] = "Libros que aún tienen DRM" },
-        ["Drm.Queued"] = new() { ["en"] = "{0} book(s) queued for DRM removal.", ["hi"] = "{0} पुस्तक(एँ) DRM हटाने के लिए सूची में जोड़ी गईं।", ["es"] = "{0} libro(s) en la cola para quitar el DRM." },
-        ["Drm.NoneLeft"] = new() { ["en"] = "No Audible book in your download folder still has DRM.", ["hi"] = "आपके डाउनलोड फ़ोल्डर की किसी Audible पुस्तक में अब DRM नहीं है।", ["es"] = "Ningún libro de Audible de su carpeta de descargas tiene ya DRM." },
-        ["Drm.TurnOnFirst"] = new() { ["en"] = "DRM removal is off. Turn it on in Settings, Downloads first.", ["hi"] = "DRM हटाना बंद है। पहले सेटिंग्स, डाउनलोड में इसे चालू करें।", ["es"] = "La eliminación del DRM está desactivada. Actívela antes en Configuración, Descargas." },
-        ["Main.DrmKept"] = new() { ["en"] = "Audible books are saved with their DRM. Turn on DRM removal in Settings, Downloads to get DRM-free files.", ["hi"] = "Audible पुस्तकें DRM के साथ सहेजी जाती हैं। DRM-मुक्त फ़ाइलों के लिए सेटिंग्स, डाउनलोड में DRM हटाना चालू करें।", ["es"] = "Los libros de Audible se guardan con su DRM. Active la eliminación del DRM en Configuración, Descargas." },
-        ["Menu.UnlockExisting"] = new() { ["en"] = "Remove &DRM from downloaded books…", ["hi"] = "डाउनलोड की गई पुस्तकों से &DRM हटाएँ…", ["es"] = "Quitar el &DRM de los libros descargados…" },
 
         // ---------------- player extras, store, accounts, backup, statistics ----------------
         ["Player.AddBookmark"] = new() { ["en"] = "Add boo&kmark…", ["hi"] = "बु&कमार्क जोड़ें…", ["es"] = "Añadir &marcador…" },
@@ -685,21 +586,9 @@ internal static partial class Strings
         ["Menu.Stats"] = new() { ["en"] = "Listening &statistics…", ["hi"] = "सुनने के &आँकड़े…", ["es"] = "&Estadísticas de escucha…" },
         ["Menu.BackupNow"] = new() { ["en"] = "&Back up downloaded books now", ["hi"] = "डाउनलोड की गई पुस्तकों का अभी &बैकअप लें", ["es"] = "Hacer copia de &seguridad ahora" },
         ["BookMenu.Name"] = new() { ["en"] = "Book", ["hi"] = "पुस्तक", ["es"] = "Libro" },
-        ["BookMenu.Details"] = new() { ["en"] = "Book &details…", ["hi"] = "पुस्तक &विवरण…", ["es"] = "&Detalles del libro…" },
-        ["BookMenu.Store"] = new() { ["en"] = "Open in the Audible &store", ["hi"] = "Audible &स्टोर में खोलें", ["es"] = "Abrir en la &tienda de Audible" },
-        ["BookMenu.AddWish"] = new() { ["en"] = "Add to &wishlist", ["hi"] = "&विशलिस्ट में जोड़ें", ["es"] = "Añadir a la lista de &deseos" },
-        ["BookMenu.RemoveWish"] = new() { ["en"] = "&Remove from wishlist", ["hi"] = "विशलिस्ट से &हटाएँ", ["es"] = "&Quitar de la lista de deseos" },
+        ["BookMenu.Details"] = new() { ["en"] = "&Book details…", ["hi"] = "पुस्तक &विवरण…", ["es"] = "Detalles del &libro…" },
         ["Main.SortNameSeries"] = new() { ["en"] = "series", ["hi"] = "सीरीज़", ["es"] = "serie" },
-        ["Main.BooksStore"] = new() { ["en"] = "Audible store (&books):", ["hi"] = "Audible स्टोर (&पुस्तकें):", ["es"] = "Tienda de Audible (&libros):" },
         ["Main.SignedInAs"] = new() { ["en"] = "Signed in as {0} ({1}).", ["hi"] = "{0} के रूप में साइन इन ({1})।", ["es"] = "Sesión iniciada como {0} ({1})." },
-        ["Store.Hint"] = new() { ["en"] = "Showing your wishlist. Type in Search books to search the whole Audible store.", ["hi"] = "आपकी विशलिस्ट दिख रही है। पूरे Audible स्टोर में खोजने के लिए पुस्तकें खोजें में लिखें।", ["es"] = "Se muestra su lista de deseos. Escriba en Buscar libros para buscar en toda la tienda de Audible." },
-        ["Store.NotOwned"] = new() { ["en"] = "\"{0}\" is not in your library. Open its store page (Ctrl+Shift+S) to buy it.", ["hi"] = "\"{0}\" आपकी लाइब्रेरी में नहीं है। खरीदने के लिए इसका स्टोर पेज (Ctrl+Shift+S) खोलें।", ["es"] = "\"{0}\" no está en su biblioteca. Abra su página de la tienda (Ctrl+Mayús+S) para comprarlo." },
-        ["Store.InLibrary"] = new() { ["en"] = "In your Audible library.", ["hi"] = "आपकी Audible लाइब्रेरी में है।", ["es"] = "En su biblioteca de Audible." },
-        ["Store.NotInLibrary"] = new() { ["en"] = "Not in your library yet.", ["hi"] = "अभी आपकी लाइब्रेरी में नहीं है।", ["es"] = "Aún no está en su biblioteca." },
-        ["Store.ChooseAudible"] = new() { ["en"] = "Choose a book from Audible or the Audible store first.", ["hi"] = "पहले Audible या Audible स्टोर से कोई पुस्तक चुनें।", ["es"] = "Elija antes un libro de Audible o de la tienda de Audible." },
-        ["Store.Opened"] = new() { ["en"] = "Opened the store page of \"{0}\" in your browser.", ["hi"] = "\"{0}\" का स्टोर पेज आपके ब्राउज़र में खोला गया।", ["es"] = "Se abrió la página de \"{0}\" en su navegador." },
-        ["Store.WishAdded"] = new() { ["en"] = "\"{0}\" added to your wishlist.", ["hi"] = "\"{0}\" आपकी विशलिस्ट में जोड़ी गई।", ["es"] = "\"{0}\" añadido a su lista de deseos." },
-        ["Store.WishRemoved"] = new() { ["en"] = "\"{0}\" removed from your wishlist.", ["hi"] = "\"{0}\" आपकी विशलिस्ट से हटाई गई।", ["es"] = "\"{0}\" quitado de su lista de deseos." },
         ["Backup.NoFolder"] = new() { ["en"] = "Choose a backup folder first, in Settings, Downloads.", ["hi"] = "पहले सेटिंग्स, डाउनलोड में बैकअप फ़ोल्डर चुनें।", ["es"] = "Elija antes una carpeta de copia en Configuración, Descargas." },
         ["Backup.Running"] = new() { ["en"] = "Backing up to {0}…", ["hi"] = "{0} में बैकअप हो रहा है…", ["es"] = "Copiando a {0}…" },
         ["Backup.Done"] = new() { ["en"] = "{0} file(s) backed up to {1}.", ["hi"] = "{0} फ़ाइलें {1} में बैकअप हुईं।", ["es"] = "Se copiaron {0} archivo(s) a {1}." },
@@ -715,15 +604,48 @@ internal static partial class Strings
         ["Details.NextInSeries"] = new() { ["en"] = "Next in the series", ["hi"] = "सीरीज़ में अगली", ["es"] = "Siguiente de la serie" },
         ["Shortcut.SortSeries"] = new() { ["en"] = "Sort the book list by series, in reading order.", ["hi"] = "पुस्तक सूची को सीरीज़ से, पढ़ने के क्रम में क्रमबद्ध करें।", ["es"] = "Ordenar la lista por serie, en orden de lectura." },
         ["Shortcut.Stats"] = new() { ["en"] = "Show how much you have listened: today, this week, this month, and your streak.", ["hi"] = "दिखाएँ कि आपने कितना सुना: आज, इस सप्ताह, इस महीने, और लगातार दिन।", ["es"] = "Mostrar cuánto ha escuchado: hoy, esta semana, este mes y su racha." },
-        ["Shortcut.StorePage"] = new() { ["en"] = "Open the selected Audible book's page in the Audible store.", ["hi"] = "चुनी गई Audible पुस्तक का पेज Audible स्टोर में खोलें।", ["es"] = "Abrir la página del libro de Audible seleccionado en la tienda." },
         ["Set.Accounts"] = new() { ["en"] = "Account in &use:", ["hi"] = "&उपयोग में खाता:", ["es"] = "Cuenta en &uso:" },
-        ["Set.AddAccount"] = new() { ["en"] = "Add a&nother account…", ["hi"] = "&दूसरा खाता जोड़ें…", ["es"] = "Añadir &otra cuenta…" },
+        ["Set.AddAccount"] = new() { ["en"] = "Add a&nother account…", ["hi"] = "दूसरा खा&ता जोड़ें…", ["es"] = "Añadir &otra cuenta…" },
         ["Set.SwitchedTo"] = new() { ["en"] = "Now using {0}.", ["hi"] = "अब {0} का उपयोग हो रहा है।", ["es"] = "Ahora se usa {0}." },
         ["Set.NewAccount"] = new() { ["en"] = "New account", ["hi"] = "नया खाता", ["es"] = "Cuenta nueva" },
-        ["Set.Backup"] = new() { ["en"] = "Copy every finished book to a &backup folder", ["hi"] = "हर पूरी पुस्तक को &बैकअप फ़ोल्डर में कॉपी करें", ["es"] = "Copiar cada libro terminado a una carpeta de &copia" },
-        ["Set.BackupFolder"] = new() { ["en"] = "Backup f&older:", ["hi"] = "बैकअप &फ़ोल्डर:", ["es"] = "Carpeta de c&opia:" },
+        ["Set.Backup"] = new() { ["en"] = "Copy every finished book to a &backup folder", ["hi"] = "हर पूरी पुस्तक को बैकअप &फ़ोल्डर में कॉपी करें", ["es"] = "Copiar cada libro &terminado a una carpeta de copia" },
+        ["Set.BackupFolder"] = new() { ["en"] = "Back&up folder:", ["hi"] = "बैकअप फ़ोल्डर का स्था&न:", ["es"] = "Ca&rpeta de copia:" },
         ["Set.ChooseBackupFolder"] = new() { ["en"] = "Choose the backup folder (a OneDrive folder is uploaded to the cloud by OneDrive)", ["hi"] = "बैकअप फ़ोल्डर चुनें (OneDrive फ़ोल्डर को OneDrive क्लाउड पर अपलोड करता है)", ["es"] = "Elija la carpeta de copia (OneDrive sube a la nube una carpeta de OneDrive)" },
-        ["Set.AnnounceChapters"] = new() { ["en"] = "Say each &chapter's name when the player reaches it", ["hi"] = "प्लेयर नए &अध्याय पर पहुँचे तो उसका नाम बताएँ", ["es"] = "Decir el nombre de cada &capítulo al llegar a él" },
+        ["Set.AnnounceChapters"] = new() { ["en"] = "Say &each chapter's name when the player reaches it", ["hi"] = "प्लेयर नए &अध्याय पर पहुँचे तो उसका नाम बताएँ", ["es"] = "&Decir el nombre de cada capítulo al llegar a él" },
+        ["Set.ProgressBeeps"] = new() { ["en"] = "&Beep as a download progresses, like NVDA's progress bars", ["hi"] = "NVDA की प्रगति पट्टी की तरह डाउनलोड के साथ &बीप बजाएँ", ["es"] = "Emitir un &bip según avanza la descarga, como las barras de progreso de NVDA" },
+        ["Group.DownloadFolder"] = new() { ["en"] = "Download folder", ["hi"] = "डाउनलोड फ़ोल्डर", ["es"] = "Carpeta de descargas" },
+        ["Group.WhenFinished"] = new() { ["en"] = "When downloads finish", ["hi"] = "डाउनलोड पूरे होने पर", ["es"] = "Al terminar las descargas" },
+        ["Group.App"] = new() { ["en"] = "Using the app", ["hi"] = "ऐप का उपयोग", ["es"] = "Uso de la aplicación" },
+        ["Group.Files"] = new() { ["en"] = "Files and folders", ["hi"] = "फ़ाइलें और फ़ोल्डर", ["es"] = "Archivos y carpetas" },
+        ["Group.Backup"] = new() { ["en"] = "Backup", ["hi"] = "बैकअप", ["es"] = "Copia de seguridad" },
+        ["Group.Speed"] = new() { ["en"] = "Speed", ["hi"] = "गति", ["es"] = "Velocidad" },
+        ["Group.Account"] = new() { ["en"] = "Account", ["hi"] = "खाता", ["es"] = "Cuenta" },
+        ["Group.Library"] = new() { ["en"] = "Library", ["hi"] = "लाइब्रेरी", ["es"] = "Biblioteca" },
+        ["Group.AppLanguage"] = new() { ["en"] = "Language of the app", ["hi"] = "ऐप की भाषा", ["es"] = "Idioma de la aplicación" },
+        ["Group.BookLanguages"] = new() { ["en"] = "Language of the books listed", ["hi"] = "दिखाई जाने वाली किताबों की भाषा", ["es"] = "Idioma de los libros que se muestran" },
+        ["Group.Announcements"] = new() { ["en"] = "Screen reader announcements", ["hi"] = "स्क्रीन रीडर घोषणाएँ", ["es"] = "Anuncios del lector de pantalla" },
+        ["Group.Sounds"] = new() { ["en"] = "Sounds", ["hi"] = "ध्वनियाँ", ["es"] = "Sonidos" },
+        ["Set.LanguageAudible"] = new() { ["en"] = "A&udible:", ["hi"] = "&Audible:", ["es"] = "A&udible:" },
+        ["Set.LanguageLibriVox"] = new() { ["en"] = "&LibriVox:", ["hi"] = "&LibriVox:", ["es"] = "&LibriVox:" },
+        ["Set.LanguageGutenberg"] = new() { ["en"] = "Project &Gutenberg:", ["hi"] = "Project &Gutenberg:", ["es"] = "Project &Gutenberg:" },
+        ["Main.BookDownloaded"] = new() { ["en"] = "Download successful: {0}", ["hi"] = "डाउनलोड सफल: {0}", ["es"] = "Descarga correcta: {0}" },
+        ["Notify.Title"] = new() { ["en"] = "Download complete", ["hi"] = "डाउनलोड पूरा", ["es"] = "Descarga completada" },
+        ["Set.Notify"] = new() { ["en"] = "Show a Windows &notification, with its sound, when a book has downloaded", ["hi"] = "किताब डाउनलोड होने पर Windows &सूचना उसकी ध्वनि के साथ दिखाएँ", ["es"] = "Mostrar una &notificación de Windows, con su sonido, al descargar cada libro" },
+        ["Format.ArchiveZip"] = new() { ["en"] = "The item's files in a ZIP file", ["hi"] = "ZIP फ़ाइल में आइटम की सभी फ़ाइलें", ["es"] = "Los archivos del elemento en un archivo ZIP" },
+        ["Format.LibriVoxZip"] = new() { ["en"] = "MP3 chapters in a ZIP file", ["hi"] = "ZIP फ़ाइल में MP3 अध्याय", ["es"] = "Capítulos MP3 en un archivo ZIP" },
+        ["Format.Mp3Chapters"] = new() { ["en"] = "MP3, one file per chapter", ["hi"] = "MP3, हर अध्याय की अलग फ़ाइल", ["es"] = "MP3, un archivo por capítulo" },
+        ["Format.M4bChapters"] = new() { ["en"] = "M4B, one file per chapter", ["hi"] = "M4B, हर अध्याय की अलग फ़ाइल", ["es"] = "M4B, un archivo por capítulo" },
+        ["DownloadFormat.Now"] = new() { ["en"] = "&Download now", ["hi"] = "अभी &डाउनलोड करें", ["es"] = "&Descargar ahora" },
+        ["DownloadFormat.Label"] = new() { ["en"] = "&Format:", ["hi"] = "&फ़ॉर्मैट:", ["es"] = "&Formato:" },
+        ["DownloadFormat.Books"] = new() { ["en"] = "{0} books", ["hi"] = "{0} किताबें", ["es"] = "{0} libros" },
+        ["DownloadFormat.Title"] = new() { ["en"] = "Download {0}", ["hi"] = "{0} डाउनलोड करें", ["es"] = "Descargar {0}" },
+        ["Main.BookFailed"] = new() { ["en"] = "{0} could not be downloaded: {1}", ["hi"] = "{0} डाउनलोड नहीं हो सकी: {1}", ["es"] = "No se pudo descargar {0}: {1}" },
+        ["Main.DownloadsStarted"] = new() { ["en"] = "Downloading {0} books, one after another.", ["hi"] = "{0} किताबें एक-एक करके डाउनलोड हो रही हैं।", ["es"] = "Descargando {0} libros, uno tras otro." },
+        ["Main.DownloadStarted"] = new() { ["en"] = "Downloading {0}.", ["hi"] = "{0} डाउनलोड हो रही है।", ["es"] = "Descargando {0}." },
+        ["BookMenu.Download"] = new() { ["en"] = "&Download", ["hi"] = "&डाउनलोड करें", ["es"] = "&Descargar" },
+        ["Main.ProgressPercent"] = new() { ["en"] = "{0} percent", ["hi"] = "{0} प्रतिशत", ["es"] = "{0} por ciento" },
+        ["Drm.NotPurchasedTitle"] = new() { ["en"] = "Not a book you bought", ["hi"] = "यह आपकी खरीदी हुई किताब नहीं है", ["es"] = "No es un libro que haya comprado" },
+        ["Drm.NotPurchased"] = new() { ["en"] = "You have not bought these books. They are in your library only through your Audible membership (Audible Plus):\n\n{0}\n\nDownloading them removes their DRM, so you get ordinary files that play anywhere. Removing DRM from a book you have not bought may be illegal in your country. If you go ahead, you do so entirely at your own responsibility: the developer of this app is not responsible for anything that may happen to you because of it.\n\nDownload them and remove their DRM?", ["hi"] = "ये किताबें आपने खरीदी नहीं हैं। ये सिर्फ़ आपकी Audible सदस्यता (Audible Plus) की वजह से आपकी लाइब्रेरी में हैं:\n\n{0}\n\nडाउनलोड करने पर इनका DRM हटा दिया जाएगा, ताकि आपको सामान्य फ़ाइलें मिलें जो कहीं भी चलें। बिना खरीदी किताब से DRM हटाना आपके देश में गैरकानूनी हो सकता है। अगर आप आगे बढ़ते हैं, तो यह पूरी तरह आपकी अपनी ज़िम्मेदारी है: इसकी वजह से आपके साथ जो कुछ भी हो, उसके लिए इस ऐप का डेवलपर ज़िम्मेदार नहीं है।\n\nक्या इन्हें डाउनलोड करके इनका DRM हटाना है?", ["es"] = "No ha comprado estos libros. Están en su biblioteca solo por su suscripción de Audible (Audible Plus):\n\n{0}\n\nAl descargarlos se les quita el DRM, para que tenga archivos normales que se reproducen en cualquier lugar. Quitar el DRM de un libro que no ha comprado puede ser ilegal en su país. Si continúa, lo hace bajo su entera responsabilidad: el desarrollador de esta aplicación no es responsable de nada que pueda ocurrirle por ello.\n\n¿Descargarlos y quitarles el DRM?" },
 
         // ---------------- keyboard help ----------------
         ["Help.Keys"] = new() { ["en"] = "Keys", ["hi"] = "कीज़", ["es"] = "Teclas" },
@@ -757,42 +679,6 @@ internal static partial class Strings
 
         // ---------------- settings: page descriptions ----------------
         ["Settings.Sections"] = new() { ["en"] = "Settings sections", ["hi"] = "सेटिंग्स भाग", ["es"] = "Secciones de configuración" },
-        ["Settings.GeneralDescription"] = new()
-        {
-            ["en"] = "Everyday options: where files are saved and how the app behaves.",
-            ["hi"] = "सामान्य विकल्प: फ़ाइलें कहाँ सहेजी जाएँ और ऐप कैसे व्यवहार करे।",
-            ["es"] = "Opciones generales: dónde se guardan los archivos y cómo se comporta la aplicación.",
-        },
-        ["Settings.DownloadsDescription"] = new()
-        {
-            ["en"] = "How downloaded files are handled, including DRM removal.",
-            ["hi"] = "डाउनलोड की गई फ़ाइलों को कैसे संभाला जाए, DRM हटाने सहित।",
-            ["es"] = "Cómo se gestionan los archivos descargados, incluida la eliminación de DRM.",
-        },
-        ["Settings.AudibleDescription"] = new()
-        {
-            ["en"] = "Sign in, sign out and check your Audible account. Audible books are only ever shown while you are signed in.",
-            ["hi"] = "साइन इन करें, साइन आउट करें और अपना Audible खाता देखें। Audible की पुस्तकें केवल साइन इन रहने पर दिखती हैं।",
-            ["es"] = "Inicie y cierre sesión y consulte su cuenta de Audible. Los libros de Audible solo se muestran con la sesión iniciada.",
-        },
-        ["Settings.GutenbergDescription"] = new()
-        {
-            ["en"] = "Where Project Gutenberg searches start, and which file format to prefer.",
-            ["hi"] = "प्रोजेक्ट गुटेनबर्ग की खोज कहाँ से शुरू हो और कौन-सा प्रारूप पसंदीदा हो।",
-            ["es"] = "Dónde comienzan las búsquedas de Project Gutenberg y qué formato preferir.",
-        },
-        ["Settings.LanguageDescription"] = new()
-        {
-            ["en"] = "Which language the application itself is shown in.",
-            ["hi"] = "ऐप किस भाषा में दिखाया जाए।",
-            ["es"] = "En qué idioma se muestra la aplicación.",
-        },
-        ["Settings.AccessibilityDescription"] = new()
-        {
-            ["en"] = "How the app works with your screen reader.",
-            ["hi"] = "ऐप आपके स्क्रीन रीडर के साथ कैसे काम करता है।",
-            ["es"] = "Cómo funciona la aplicación con su lector de pantalla.",
-        },
         ["Settings.Ready"] = new() { ["en"] = "Ready.", ["hi"] = "तैयार।", ["es"] = "Listo." },
         ["Settings.Status"] = new() { ["en"] = "Settings status", ["hi"] = "सेटिंग्स की स्थिति", ["es"] = "Estado de la configuración" },
         ["Settings.Save"] = new() { ["en"] = "Save settings", ["hi"] = "सेटिंग्स सहेजें", ["es"] = "Guardar la configuración" },
@@ -801,29 +687,8 @@ internal static partial class Strings
         ["Settings.Saved"] = new() { ["en"] = "Settings saved.", ["hi"] = "सेटिंग्स सहेज दी गईं।", ["es"] = "Configuración guardada." },
 
         // ---------------- settings: general / downloads ----------------
-        ["Set.OutputFolderDescription"] = new()
-        {
-            ["en"] = "The folder downloads are saved into. Press Browse to choose another.",
-            ["hi"] = "डाउनलोड इस फ़ोल्डर में सहेजे जाते हैं। दूसरा चुनने के लिए ब्राउज़ दबाएँ।",
-            ["es"] = "La carpeta donde se guardan las descargas. Pulse Examinar para cambiarla.",
-        },
         ["Set.ChooseFolder"] = new() { ["en"] = "Choose the folder where downloads are saved", ["hi"] = "वह फ़ोल्डर चुनें जहाँ डाउनलोड सहेजे जाएँ", ["es"] = "Elija la carpeta donde se guardan las descargas" },
-        ["Set.LocalFolderDescription"] = new()
-        {
-            ["en"] = "The folder the Local files provider scans for AAX and AAXC files you already own.",
-            ["hi"] = "वह फ़ोल्डर जहाँ लोकल फ़ाइलें प्रदाता आपकी AAX और AAXC फ़ाइलें खोजता है।",
-            ["es"] = "La carpeta donde el proveedor de archivos locales busca sus AAX y AAXC.",
-        },
-        ["Set.ChooseLocalFolder"] = new() { ["en"] = "Choose the folder holding your AAX or AAXC files", ["hi"] = "वह फ़ोल्डर चुनें जिसमें आपकी AAX या AAXC फ़ाइलें हैं", ["es"] = "Elija la carpeta con sus archivos AAX o AAXC" },
-        ["Downloads.Note"] = new()
-        {
-            ["en"] = "DRM removal is off until you turn it on. When it is on, it is lossless, complete and happens entirely on your computer. " +
-                   "Only back up books you own: Audible issues licences only for titles in your own library.",
-            ["hi"] = "DRM हटाना तब तक बंद रहता है जब तक आप इसे चालू न करें। चालू होने पर यह लॉसलेस, पूरा और पूरी तरह आपके कंप्यूटर पर होता है। " +
-                   "केवल अपनी खरीदी पुस्तकों का बैकअप लें: Audible केवल आपकी लाइब्रेरी की पुस्तकों के लिए लाइसेंस देता है।",
-            ["es"] = "La eliminación del DRM está desactivada hasta que la active. Cuando está activa es sin pérdida, completa y ocurre en su equipo. " +
-                   "Haga copia solo de libros propios: Audible solo emite licencias para títulos de su biblioteca.",
-        },
+        ["Downloads.Note"] = new() { ["en"] = "Every Audible book has its DRM removed, losslessly and entirely on your computer. Audible issues download licences only for titles in your own library.", ["hi"] = "हर Audible किताब का DRM बिना गुणवत्ता घटाए, पूरी तरह आपके कंप्यूटर पर हटाया जाता है। Audible केवल आपकी अपनी लाइब्रेरी की किताबों के लिए डाउनलोड लाइसेंस देता है।", ["es"] = "A cada libro de Audible se le quita el DRM sin pérdida de calidad y por completo en su equipo. Audible solo emite licencias de descarga para los títulos de su propia biblioteca." },
 
         // ---------------- Audible countries ----------------
         //
@@ -875,7 +740,7 @@ internal static partial class Strings
         ["Country.Title"] = new() { ["en"] = "Sign in to Audible", ["hi"] = "Audible में साइन इन करें", ["es"] = "Iniciar sesión en Audible" },
 
         // ---------------- settings: Audible account ----------------
-        ["Set.SwitchAccount"] = new() { ["en"] = "Switch &account…", ["hi"] = "&खाता बदलें…", ["es"] = "&Cambiar de cuenta…" },
+        ["Set.SwitchAccount"] = new() { ["en"] = "S&witch account…", ["hi"] = "&खाता बदलें…", ["es"] = "Cambiar &de cuenta…" },
         ["Audible.Note"] = new()
         {
             ["en"] = "No Audible book, story, recommendation or library item is shown unless you are signed in. " +
@@ -884,23 +749,6 @@ internal static partial class Strings
                    "साइन-इन के अलावा कुछ भी सहेजा नहीं जाता।",
             ["es"] = "No se muestra ningún libro, historia, recomendación ni elemento de la biblioteca de Audible " +
                    "si no ha iniciado sesión. Nada se recuerda entre ejecuciones salvo el inicio de sesión.",
-        },
-        ["Audible.KeysHelp"] = new() { ["en"] = "How to get decryption keys", ["hi"] = "डिक्रिप्शन कीज़ कैसे पाएँ", ["es"] = "Cómo obtener las claves de descifrado" },
-        ["Audible.KeysHelpText"] = new()
-        {
-            ["en"] = "Legacy AAX files use 8 hex digits called activation bytes.\n\n" +
-                   "Modern AAXC files use a 32-hex-digit key and a 32-hex-digit IV.\n\n" +
-                   "When you download from your own Audible account through this app, the keys are fetched " +
-                   "automatically, so you never need to type them. For files you already have, the quickest " +
-                   "route is to download the same title through the app once; the keys are then remembered for that file.",
-            ["hi"] = "पुरानी AAX फ़ाइलें 8 हेक्स अंकों वाली एक्टिवेशन बाइट्स इस्तेमाल करती हैं।\n\n" +
-                   "आधुनिक AAXC फ़ाइलें 32 हेक्स अंकों की की और 32 हेक्स अंकों की IV इस्तेमाल करती हैं।\n\n" +
-                   "इस ऐप से अपने Audible खाते से डाउनलोड करते समय कीज़ अपने आप आ जाती हैं, आपको टाइप नहीं करनी पड़तीं। " +
-                   "पहले से मौजूद फ़ाइलों के लिए, उसी पुस्तक को एक बार ऐप से डाउनलोड कर लें; कीज़ याद रखी जाएँगी।",
-            ["es"] = "Los archivos AAX antiguos usan 8 dígitos hexadecimales llamados bytes de activación.\n\n" +
-                   "Los archivos AAXC modernos usan una clave de 32 dígitos hexadecimales y un IV de 32.\n\n" +
-                   "Al descargar desde su propia cuenta de Audible con esta aplicación, las claves se obtienen " +
-                   "automáticamente. Para archivos que ya tiene, lo más rápido es descargar el mismo título una vez con la aplicación.",
         },
         ["Audible.SigningIn"] = new()
         {
@@ -963,37 +811,10 @@ internal static partial class Strings
         },
 
         // ---------------- settings: Gutenberg / language / accessibility ----------------
-        ["Set.DefaultLanguageDescription"] = new()
-        {
-            ["en"] = "The language the Gutenberg search box starts in. You can change it on the main window too.",
-            ["hi"] = "गुटेनबर्ग खोज किस भाषा में शुरू हो। इसे मुख्य विंडो में भी बदल सकते हैं।",
-            ["es"] = "El idioma inicial del cuadro de búsqueda de Gutenberg. También puede cambiarlo en la ventana principal.",
-        },
-        ["Set.PreferredFormatDescription"] = new()
-        {
-            ["en"] = "Audio MP3 when a title has one, otherwise this format.",
-            ["hi"] = "यदि MP3 ऑडियो उपलब्ध हो तो वह, वरना यह प्रारूप।",
-            ["es"] = "Audio MP3 cuando el título lo tenga; si no, este formato.",
-        },
         ["Format.Audio"] = new() { ["en"] = "Audio (MP3) when available, otherwise EPUB", ["hi"] = "उपलब्ध हो तो ऑडियो (MP3), वरना EPUB", ["es"] = "Audio (MP3) si está disponible; si no, EPUB" },
         ["Format.Epub"] = new() { ["en"] = "EPUB", ["hi"] = "EPUB", ["es"] = "EPUB" },
         ["Format.Html"] = new() { ["en"] = "HTML", ["hi"] = "HTML", ["es"] = "HTML" },
         ["Format.Text"] = new() { ["en"] = "Plain text", ["hi"] = "सादा पाठ", ["es"] = "Texto sin formato" },
-        ["Gutenberg.Note"] = new()
-        {
-            ["en"] = "Project Gutenberg is free and needs no account. Every language Gutenberg publishes can be searched, " +
-                   "including English, Hindi and dozens more.",
-            ["hi"] = "प्रोजेक्ट गुटेनबर्ग निःशुल्क है और खाता नहीं चाहता। गुटेनबर्ग की हर भाषा में खोज हो सकती है, " +
-                   "जिसमें अंग्रेज़ी, हिन्दी और कई और भाषाएँ शामिल हैं।",
-            ["es"] = "Project Gutenberg es gratuito y no necesita cuenta. Se puede buscar en todos los idiomas que publica " +
-                   "Gutenberg, incluidos inglés, hindi y muchos más.",
-        },
-        ["Set.UiLanguageDescription"] = new()
-        {
-            ["en"] = "Choose the interface language. The change applies when you press OK.",
-            ["hi"] = "इंटरफ़ेस भाषा चुनें। बदलाव ठीक है दबाने पर लागू होगा।",
-            ["es"] = "Elija el idioma de la interfaz. El cambio se aplica al pulsar Aceptar.",
-        },
         ["Language.Note"] = new()
         {
             ["en"] = "Some technical messages are always shown in English.",
@@ -1038,18 +859,6 @@ internal static partial class Strings
         ["About.Close"] = new() { ["en"] = "Close the About dialog", ["hi"] = "परिचय संवाद बंद करें", ["es"] = "Cerrar el cuadro Acerca de" },
 
         // ---------------- activity log ----------------
-        ["Main.LogShown"] = new()
-        {
-            ["en"] = "Activity log shown.",
-            ["hi"] = "गतिविधि लॉग दिखा दिया गया।",
-            ["es"] = "Registro de actividad mostrado.",
-        },
-        ["Main.LogHidden"] = new()
-        {
-            ["en"] = "Activity log hidden. Press Control L to show it again.",
-            ["hi"] = "गतिविधि लॉग छिपा दिया गया। दोबारा दिखाने के लिए Control L दबाएँ।",
-            ["es"] = "Registro de actividad oculto. Pulse Control L para mostrarlo de nuevo.",
-        },
 
         // ---------------- progress live region ----------------
         ["Main.ProgressStatus"] = new()
@@ -1153,93 +962,5 @@ internal static partial class Strings
         },
 
         // ---------------- decryption key dialog ----------------
-        ["Key.Title"] = new()
-        {
-            ["en"] = "Decryption keys needed",
-            ["hi"] = "डिक्रिप्शन कुंजियाँ चाहिए",
-            ["es"] = "Se necesitan claves de descifrado",
-        },
-        ["Key.File"] = new() { ["en"] = "File: {0}", ["hi"] = "फ़ाइल: {0}", ["es"] = "Archivo: {0}" },
-        ["Key.FileAccessible"] = new() { ["en"] = "File", ["hi"] = "फ़ाइल", ["es"] = "Archivo" },
-        ["Key.ExplanationAccessible"] = new()
-        {
-            ["en"] = "Explanation",
-            ["hi"] = "विवरण",
-            ["es"] = "Explicación",
-        },
-        ["Key.ExplainKeyIv"] = new()
-        {
-            ["en"] = "AAXC files need a key and an IV (32 hex digits each).",
-            ["hi"] = "AAXC फ़ाइलों के लिए key और IV चाहिए (हर एक 32 हेक्स अंक)।",
-            ["es"] = "Los archivos AAXC necesitan una clave y un IV (32 dígitos hexadecimales cada uno).",
-        },
-        ["Key.ExplainActivation"] = new()
-        {
-            ["en"] = "AAX files need 8 hex digits called activation bytes.",
-            ["hi"] = "AAX फ़ाइलों के लिए 8 हेक्स अंक चाहिए, जिन्हें activation bytes कहते हैं।",
-            ["es"] = "Los archivos AAX necesitan 8 dígitos hexadecimales llamados bytes de activación.",
-        },
-        ["Key.KeyLabel"] = new() { ["en"] = "&Key:", ["hi"] = "&Key:", ["es"] = "&Clave:" },
-        ["Key.KeyAccessible"] = new()
-        {
-            ["en"] = "Decryption key",
-            ["hi"] = "डिक्रिप्शन key",
-            ["es"] = "Clave de descifrado",
-        },
-        ["Key.IvLabel"] = new() { ["en"] = "&IV:", ["hi"] = "&IV:", ["es"] = "&IV:" },
-        ["Key.IvAccessible"] = new()
-        {
-            ["en"] = "Initialization vector",
-            ["hi"] = "इनिशियलाइज़ेशन वेक्टर (IV)",
-            ["es"] = "Vector de inicialización (IV)",
-        },
-        ["Key.ActivationLabel"] = new()
-        {
-            ["en"] = "&Activation bytes:",
-            ["hi"] = "&Activation bytes:",
-            ["es"] = "Bytes de &activación:",
-        },
-        ["Key.ActivationAccessible"] = new()
-        {
-            ["en"] = "Activation bytes",
-            ["hi"] = "Activation bytes",
-            ["es"] = "Bytes de activación",
-        },
-        ["Key.OkAccessible"] = new()
-        {
-            ["en"] = "OK",
-            ["hi"] = "ठीक है",
-            ["es"] = "Aceptar",
-        },
-        ["Key.CancelAccessible"] = new()
-        {
-            ["en"] = "Cancel",
-            ["hi"] = "रद्द करें",
-            ["es"] = "Cancelar",
-        },
-        ["Key.BadKeyIv"] = new()
-        {
-            ["en"] = "The key and IV must each be exactly 32 hex digits (0-9, a-f).",
-            ["hi"] = "key और IV में से हर एक ठीक 32 हेक्स अंक होना चाहिए (0-9, a-f)।",
-            ["es"] = "La clave y el IV deben tener exactamente 32 dígitos hexadecimales (0-9, a-f).",
-        },
-        ["Key.BadKeyIvTitle"] = new()
-        {
-            ["en"] = "Check the key",
-            ["hi"] = "कुंजी जाँचें",
-            ["es"] = "Compruebe la clave",
-        },
-        ["Key.BadActivation"] = new()
-        {
-            ["en"] = "Activation bytes must be exactly 8 hex digits (0-9, a-f).",
-            ["hi"] = "activation bytes ठीक 8 हेक्स अंक होने चाहिए (0-9, a-f)।",
-            ["es"] = "Los bytes de activación deben ser exactamente 8 dígitos hexadecimales (0-9, a-f).",
-        },
-        ["Key.BadActivationTitle"] = new()
-        {
-            ["en"] = "Check the activation bytes",
-            ["hi"] = "activation bytes जाँचें",
-            ["es"] = "Compruebe los bytes de activación",
-        },
     };
 }

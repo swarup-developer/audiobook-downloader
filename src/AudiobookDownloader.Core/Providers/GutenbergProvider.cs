@@ -201,7 +201,7 @@ public sealed class GutenbergProvider : IBookProvider, ILanguageFilter
                     languages.Add(code.ToUpperInvariant());
         }
 
-        var (format, downloadUrl, extension) = PickFormat(item);
+        var (format, downloadUrl, extension, available) = PickFormat(item);
         var bookPage = $"https://www.gutenberg.org/ebooks/{id}";
 
         // Prefer the canonical Gutenberg page for the "access this book" link, but
@@ -218,11 +218,14 @@ public sealed class GutenbergProvider : IBookProvider, ILanguageFilter
             0,
             $"https://www.gutenberg.org/cache/epub/{id}/pg{id}.cover.medium.jpg",
             downloadUrl ?? bookPage,
-            info + (extension is null ? "" : $"\n{bookPage}"));
+            info + (extension is null ? "" : $"\n{bookPage}"))
+        {
+            Formats = available,
+        };
     }
 
     /// <summary>Choose which file to offer for a book, honouring the user's preference.</summary>
-    private (string Describe, string? Url, string? Extension) PickFormat(JsonElement item)
+    private (string Describe, string? Url, string? Extension, IReadOnlyDictionary<string, string> Available) PickFormat(JsonElement item)
     {
         var formats = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (item.TryGetProperty("formats", out var f) && f.ValueKind == JsonValueKind.Object)
@@ -259,6 +262,12 @@ public sealed class GutenbergProvider : IBookProvider, ILanguageFilter
         const string txt = "text/plain";
         const string audio = "audio/mpeg";
 
+        // Every format this book has, so the one to download can be chosen later.
+        var available = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (code, mime) in new[] { ("audio", audio), ("epub", epub), ("html", html), ("txt", txt) })
+            if (Find(mime) is { } address)
+                available[code] = address;
+
         var preference = (_settings.GutenbergFormat ?? "audio").Trim().ToLowerInvariant();
 
         var order = preference switch
@@ -291,10 +300,10 @@ public sealed class GutenbergProvider : IBookProvider, ILanguageFilter
                 audio => "MP3 audio",
                 _ => "file",
             };
-            return (describe, url, extension);
+            return (describe, url, extension, available);
         }
 
-        return ("web page", null, null);
+        return ("web page", null, null, available);
     }
 
     private static bool Contains(string haystack, string needle) =>

@@ -719,7 +719,7 @@ internal sealed class PlayerForm : Form
             var detect = AAXClean.Codecs.Mp4FileExtensions.DetectSilenceAsync(mp4, -35, LongSilence, null);
             detect.Start();
             var found = detect.OperationTask.GetAwaiter().GetResult();
-            return found.Select(s => (s.SilenceStart, s.SilenceEnd)).ToList();
+            return (found ?? []).Select(s => (s.SilenceStart, s.SilenceEnd)).ToList();
         }
         catch (Exception ex)
         {

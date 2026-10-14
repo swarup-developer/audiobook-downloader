@@ -20,6 +20,19 @@ public sealed record BookInfo(
     /// <summary>Shown when a provider sends a book with nobody credited.</summary>
     public const string UnknownAuthor = "Unknown author";
 
+    /// <summary>
+    /// The format chosen when Download was pressed: for Audible "m4b", "mp3",
+    /// "m4b-chapters" or "mp3-chapters"; for Project Gutenberg "audio", "epub", "html"
+    /// or "txt". Null means the settings decide.
+    /// </summary>
+    public string? Format { get; init; }
+
+    /// <summary>
+    /// Every file a Project Gutenberg book can be downloaded as, by format ("epub",
+    /// "html", "txt", "audio"), so the format can be chosen when it is downloaded.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? Formats { get; init; }
+
     /// <summary>The book's language as the provider names it, when it says; used by language filters.</summary>
     public string? Language { get; init; }
 
@@ -36,10 +49,11 @@ public sealed record BookInfo(
     public float SeriesPosition { get; init; }
 
     /// <summary>
-    /// For the Audible store: whether the book is already in the account's library.
-    /// Null for every other source.
+    /// For Audible: false for a book that is in the library without having been
+    /// bought (an Audible Plus title, borrowed with the membership). True for a
+    /// bought book, and null for every other source.
     /// </summary>
-    public bool? InLibrary { get; init; }
+    public bool? Purchased { get; init; }
 
     /// <summary>When the book was added to the library (Audible), for sorting by date.</summary>
     public DateTimeOffset? DateAdded { get; init; }

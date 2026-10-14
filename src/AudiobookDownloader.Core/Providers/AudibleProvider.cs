@@ -433,11 +433,21 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
             Series = DescribeSeries(i.Series),
             SeriesName = FirstSeries(i.Series) is { } series ? DisplayText.FirstReal("", series.SeriesName, series.Title) : null,
             SeriesPosition = FirstSeries(i.Series) is { } position ? SeriesNumber(position) : 0,
+            Purchased = !IsMembershipTitle(i),
             DateAdded = i.PurchaseDate != default ? i.PurchaseDate
                 : i.DateAdded != default ? new DateTimeOffset(DateTime.SpecifyKind(i.DateAdded, DateTimeKind.Utc))
                 : null,
         };
     }
+
+    /// <summary>
+    /// A title that is in the library because of the membership (Audible Plus, the
+    /// "all you can eat" catalogue) rather than because it was bought.
+    /// </summary>
+    private static bool IsMembershipTitle(Item i) =>
+        i.IsAyce == true ||
+        (i.OriginType ?? "").Contains("Ayce", StringComparison.OrdinalIgnoreCase) ||
+        (i.OriginType ?? "").Contains("Subscription", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Podcast episode ASIN to the podcast's own name, so an episode row says which show it is from.</summary>
     private readonly Dictionary<string, string> _podcastNames = new(StringComparer.OrdinalIgnoreCase);
@@ -573,110 +583,6 @@ public sealed class AudibleProvider : IBookProvider, ILanguageFilter
     }
 
     // ------------------------------------------------------------------
-    // The Audible store: search, wishlist and store pages
-    // ------------------------------------------------------------------
-
-    private const string StoreResponseGroups =
-        "contributors,media,product_attrs,product_desc,product_extended_attrs,series,customer_rights";
-
-    /// <summary>Searches the Audible store of the account's country.</summary>
-    public async Task<IReadOnlyList<BookInfo>> SearchStoreAsync(string query, CancellationToken ct = default)
-    {
-        var api = _api ?? throw new NotSignedInException(
-            "Not signed in to Audible. Press the Sign in button next to the provider list first.");
-
-        var owned = await OwnedAsync(ct);
-        var url = "/1.0/catalog/products?num_results=50&products_sort_by=Relevance" +
-                  $"&response_groups={StoreResponseGroups}&keywords={Uri.EscapeDataString(query.Trim())}";
-
-        using var response = await api.AdHocAuthenticatedGetAsync(url);
-        response.EnsureSuccessStatusCode();
-        var json = Newtonsoft.Json.Linq.JObject.Parse(await response.Content.ReadAsStringAsync(ct));
-        var items = AudibleApi.Common.ProductsDtoV10.FromJson(json)?.Products ?? [];
-
-        Log.Info($"Audible store: {items.Length} result(s) for \"{query.Trim()}\".");
-        return items
-            .Where(i => !string.IsNullOrWhiteSpace(i.Asin))
-            .Select(i => ToBookInfo(i) with { ProviderId = AudibleStoreProvider.ProviderId, InLibrary = owned.Contains(i.Asin!) })
-            .ToList();
-    }
-
-    /// <summary>The account's wishlist, newest first.</summary>
-    public async Task<IReadOnlyList<BookInfo>> GetWishlistAsync(CancellationToken ct = default)
-    {
-        var api = _api ?? throw new NotSignedInException(
-            "Not signed in to Audible. Press the Sign in button next to the provider list first.");
-
-        var owned = await OwnedAsync(ct);
-        var products = await api.GetWishListProductsAsync(
-            new WishListOptions
-            {
-                ResponseGroups = WishListOptions.ResponseGroupOptions.ProductAttrs
-                    | WishListOptions.ResponseGroupOptions.Contributors
-                    | WishListOptions.ResponseGroupOptions.Media
-                    | WishListOptions.ResponseGroupOptions.ProductDesc,
-                NumberOfResultPerPage = 50,
-            });
-
-        Log.Info($"Audible: {products.Count} book(s) on the wishlist.");
-        return products
-            .Where(p => !string.IsNullOrWhiteSpace(p.Asin))
-            .Select(p =>
-            {
-                var minutes = (int?)p.SourceJson?["runtime_length_min"] ?? 0;
-                var title = DisplayText.FirstReal(p.Asin!, p.Title);
-                if (!DisplayText.IsMissing(p.Subtitle))
-                    title += ": " + p.Subtitle!.Trim();
-                string Names(AudibleApi.Common.Author[]? people, string none) =>
-                    string.Join(", ", (people ?? []).Select(a => a?.Name).Where(n => !DisplayText.IsMissing(n))) is { Length: > 0 } joined
-                        ? joined : none;
-
-                return new BookInfo(AudibleStoreProvider.ProviderId, p.Asin!, title,
-                    Names(p.Authors, BookInfo.UnknownAuthor), Names(p.Narrators, ""),
-                    minutes, p.ProductImages?.The500?.ToString(), null, $"{minutes / 60} hr {minutes % 60} min")
-                {
-                    Language = DisplayText.IsMissing(p.Language) ? null : Capitalise(p.Language!.Trim()),
-                    Description = DisplayText.IsMissing(p.MerchandisingSummary) ? null : StripHtml(p.MerchandisingSummary!),
-                    DateAdded = p.AddedTimestamp == default ? null : p.AddedTimestamp,
-                    InLibrary = owned.Contains(p.Asin!),
-                };
-            })
-            .OrderByDescending(b => b.DateAdded)
-            .ToList();
-    }
-
-    public async Task AddToWishlistAsync(string asin)
-    {
-        var api = _api ?? throw new NotSignedInException("Not signed in to Audible.");
-        await api.AddToWishListAsync(asin);
-        Log.Info($"Audible: {asin} added to the wishlist.");
-    }
-
-    public async Task RemoveFromWishlistAsync(string asin)
-    {
-        var api = _api ?? throw new NotSignedInException("Not signed in to Audible.");
-        await api.DeleteFromWishListAsync(asin);
-        Log.Info($"Audible: {asin} removed from the wishlist.");
-    }
-
-    /// <summary>The book's page in the account's Audible store, where it can be bought.</summary>
-    public string StorePageUrl(string asin)
-    {
-        var locale = Localization.Get(_settings.AudibleLocale ?? "us");
-        var domain = locale == Locale.Empty || string.IsNullOrWhiteSpace(locale.TopDomain) ? "com" : locale.TopDomain;
-        return $"https://www.audible.{domain}/pd/{Uri.EscapeDataString(asin)}";
-    }
-
-    /// <summary>Whether a book is in the library (loading the library if need be).</summary>
-    public async Task<bool> OwnsAsync(string asin, CancellationToken ct = default) =>
-        (await OwnedAsync(ct)).Contains(asin);
-
-    private async Task<HashSet<string>> OwnedAsync(CancellationToken ct)
-    {
-        await GetBooksAsync("", ct);
-        return new HashSet<string>((_library ?? []).Select(i => i.Asin ?? ""), StringComparer.OrdinalIgnoreCase);
-    }
-
     private static string? CoverUrl(Item i)
     {
         var url = i.ProductImages?.The1215?.ToString() ?? i.ProductImages?.The500?.ToString();

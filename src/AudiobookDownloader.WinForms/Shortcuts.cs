@@ -30,15 +30,8 @@ internal enum ShortcutAction
     Settings,
     ReloadBooks,
     Quit,
-    DecryptionKeys,
     OpenDownloadFolder,
-    ToggleActivityLog,
-    GoToActivityLog,
-    RetryQueueItem,
-    RemoveQueueItem,
-    ClearFinishedItems,
     SearchHistory,
-    BookLanguage,
     BookDetails,
     ExportBookList,
     ShowBookFile,
@@ -50,7 +43,6 @@ internal enum ShortcutAction
     HideDownloaded,
     SortBySeries,
     ListeningStats,
-    StorePage,
 
     // Answered somewhere the main window does not reach.
     MoveFocus,
@@ -100,7 +92,6 @@ internal static class Shortcuts
         new(ShortcutAction.ShortcutList, Keys.F1, "Shortcut.ShortcutList", ShortcutOwner.Menu),
         new(ShortcutAction.Settings, Keys.Control | Keys.Oemcomma, "Shortcut.Settings", ShortcutOwner.Menu),
         new(ShortcutAction.ReloadBooks, Keys.F5, "Shortcut.ReloadBooks", ShortcutOwner.Menu),
-        new(ShortcutAction.DecryptionKeys, Keys.Control | Keys.K, "Shortcut.Keys", ShortcutOwner.Menu),
         new(ShortcutAction.OpenDownloadFolder, Keys.Control | Keys.O, "Shortcut.Folder", ShortcutOwner.Menu),
         new(ShortcutAction.ExportBookList, Keys.Control | Keys.E, "Shortcut.Export", ShortcutOwner.Menu),
         new(ShortcutAction.PlayBook, Keys.Control | Keys.P, "Shortcut.Play", ShortcutOwner.Menu),
@@ -115,16 +106,9 @@ internal static class Shortcuts
 
         // Answered by the main window's own key handling.
         new(ShortcutAction.Quit, Keys.Control | Keys.Q, "Shortcut.Quit", ShortcutOwner.Window),
-        new(ShortcutAction.ToggleActivityLog, Keys.Control | Keys.L, "Shortcut.Log", ShortcutOwner.Window),
-        new(ShortcutAction.GoToActivityLog, Keys.Alt | Keys.L, "Shortcut.GoToLog", ShortcutOwner.Window),
-        new(ShortcutAction.RetryQueueItem, Keys.Control | Keys.R, "Shortcut.Retry", ShortcutOwner.Window),
-        new(ShortcutAction.RemoveQueueItem, Keys.Control | Keys.Delete, "Shortcut.Remove", ShortcutOwner.Window),
-        new(ShortcutAction.ClearFinishedItems, Keys.Control | Keys.Shift | Keys.Delete, "Shortcut.ClearFinished", ShortcutOwner.Window),
         new(ShortcutAction.SearchHistory, Keys.Alt | Keys.Down, "Shortcut.SearchHistory", ShortcutOwner.Window),
-        new(ShortcutAction.BookLanguage, Keys.Alt | Keys.U, "Shortcut.BookLanguage", ShortcutOwner.Window),
         new(ShortcutAction.BookDetails, Keys.Control | Keys.I, "Shortcut.BookDetails", ShortcutOwner.Window),
         new(ShortcutAction.ShowBookFile, Keys.Control | Keys.Shift | Keys.O, "Shortcut.ShowFile", ShortcutOwner.Window),
-        new(ShortcutAction.StorePage, Keys.Control | Keys.Shift | Keys.S, "Shortcut.StorePage", ShortcutOwner.Window),
 
         // Answered by a dialog, by Windows, or by a list: documented, never dispatched
         // here. The list entries are the ones that are a gesture rather than a key, so
